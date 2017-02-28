@@ -18,7 +18,6 @@ package controller
 
 import (
 	"fmt"
-	"os"
 	"reflect"
 	"sort"
 	"strconv"
@@ -843,22 +842,13 @@ func (ic *GenericController) createServers(data []interface{},
 	// If no default Certificate was supplied, tries to generate a new dumb one
 	if err != nil {
 		var cert *ingress.SSLCert
-		fakeCertificate := "default-fake-certificate"
-		fakeCertificatePath := fmt.Sprintf("%v/%v.pem", ingress.DefaultSSLDirectory, fakeCertificate)
-
-		// Only generates a new certificate if it doesn't exists physically
-		_, err := os.Stat(fakeCertificatePath)
+		defCert, defKey := ssl.GetFakeSSLCert()
+		cert, err = ssl.AddOrUpdateCertAndKey("system-snake-oil-certificate", defCert, defKey, []byte{})
 		if err != nil {
-			defCert, defKey := ssl.GetFakeSSLCert()
-			cert, err = ssl.AddOrUpdateCertAndKey(fakeCertificate, defCert, defKey, []byte{})
-			if err != nil {
-				glog.Fatalf("Error generating self signed certificate: %v", err)
-			}
+			glog.Fatalf("Error generating self signed certificate: %v", err)
+		} else {
 			defaultPemFileName = cert.PemFileName
 			defaultPemSHA = cert.PemSHA
-		} else {
-			defaultPemFileName = fakeCertificatePath
-			defaultPemSHA = ssl.PemSHA1(fakeCertificatePath)
 		}
 	} else {
 		defaultPemFileName = defaultCertificate.PemFileName
