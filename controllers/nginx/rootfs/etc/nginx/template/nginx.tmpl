@@ -230,17 +230,21 @@ http {
         {{ $path := buildLocation $location }}
         {{ $authPath := buildAuthLocation $location }}
 
+        {{ if not (empty $location.CertificateAuth.AuthErrorPage) }}
+        error_page 495 = {{ $location.CertificateAuth.AuthErrorPage }};
+        error_page 496 = {{ $location.CertificateAuth.AuthErrorPage }};
+        location = {{ $location.CertificateAuth.AuthErrorPage }} {
+            break;
+        }
+        {{ end }}
+
         {{ if not (empty $location.CertificateAuth.AuthSSLCert.CAFileName) }}
         # PEM sha: {{ $location.CertificateAuth.AuthSSLCert.PemSHA }}
         ssl_client_certificate              {{ $location.CertificateAuth.AuthSSLCert.CAFileName }};
         ssl_verify_client on;
         ssl_verify_depth {{ $location.CertificateAuth.ValidationDepth }};
         {{ end }}
-        {{ if not (empty $location.Redirect.AppRoot)}}
-        location = / {
-            return 302 ${{ location.Redirect.AppRoot }};
-        }
-        {{ end }}
+
         {{ if not (empty $authPath) }}
         location = {{ $authPath }} {
             internal;
