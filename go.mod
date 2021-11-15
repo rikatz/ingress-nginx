@@ -32,14 +32,14 @@ require (
 	google.golang.org/grpc v1.41.0
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 	gopkg.in/go-playground/pool.v3 v3.1.1
-	k8s.io/api v0.22.2
-	k8s.io/apiextensions-apiserver v0.22.2
-	k8s.io/apimachinery v0.22.2
-	k8s.io/apiserver v0.22.2
+	k8s.io/api v0.22.3
+	k8s.io/apiextensions-apiserver v0.22.3
+	k8s.io/apimachinery v0.22.3
+	k8s.io/apiserver v0.22.3
 	k8s.io/cli-runtime v0.21.5
-	k8s.io/client-go v0.22.2
-	k8s.io/code-generator v0.22.2
-	k8s.io/component-base v0.22.2
+	k8s.io/client-go v0.22.3
+	k8s.io/code-generator v0.22.3
+	k8s.io/component-base v0.22.3
 	k8s.io/klog/v2 v2.10.0
 	k8s.io/utils v0.0.0-20210819203725-bdf08cb9a70a // indirect
 	pault.ag/go/sniff v0.0.0-20200207005214-cf7e4d167732
