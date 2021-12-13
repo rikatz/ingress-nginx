@@ -1,53 +1,21 @@
-/*
-Copyright 2015 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-package controller
+package backend
 
 import (
 	"bytes"
-	"crypto/tls"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
-	"text/template"
 	"time"
 
-	proxyproto "github.com/armon/go-proxyproto"
 	"github.com/eapache/channels"
 	apiv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/client-go/kubernetes/scheme"
-	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/client-go/tools/record"
-	"k8s.io/client-go/util/flowcontrol"
-	"k8s.io/klog/v2"
-
-	adm_controller "k8s.io/ingress-nginx/internal/admission/controller"
 	"k8s.io/ingress-nginx/internal/file"
 	"k8s.io/ingress-nginx/internal/ingress"
 	ngx_config "k8s.io/ingress-nginx/internal/ingress/controller/config"
@@ -55,16 +23,13 @@ import (
 	"k8s.io/ingress-nginx/internal/ingress/controller/store"
 	ngx_template "k8s.io/ingress-nginx/internal/ingress/controller/template"
 	"k8s.io/ingress-nginx/internal/ingress/metric"
-	"k8s.io/ingress-nginx/internal/ingress/status"
+	pb "k8s.io/ingress-nginx/internal/ingress/protoc"
 	ing_net "k8s.io/ingress-nginx/internal/net"
 	"k8s.io/ingress-nginx/internal/net/dns"
 	"k8s.io/ingress-nginx/internal/net/ssl"
 	"k8s.io/ingress-nginx/internal/nginx"
-	"k8s.io/ingress-nginx/internal/task"
 	"k8s.io/ingress-nginx/internal/watch"
-
-	"google.golang.org/grpc"
-	pb "k8s.io/ingress-nginx/internal/ingress/protoc"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -73,12 +38,7 @@ const (
 )
 
 // NewNGINXController creates a new NGINX Ingress controller.
-func NewNGINXController(config *Configuration, mc metric.Collector) *NGINXController {
-	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(klog.Infof)
-	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{
-		Interface: config.Client.CoreV1().Events(config.Namespace),
-	})
+func NewNGINXController(config *ingress.Configuration, mc metric.Collector) *NGINXController {
 
 	h, err := dns.GetSystemNameServers()
 	if err != nil {
@@ -88,69 +48,38 @@ func NewNGINXController(config *Configuration, mc metric.Collector) *NGINXContro
 	n := &NGINXController{
 		isIPV6Enabled: ing_net.IsIPv6Enabled(),
 
-		resolver:        h,
-		cfg:             config,
-		syncRateLimiter: flowcontrol.NewTokenBucketRateLimiter(config.SyncRateLimit, 1),
+		resolver: h,
 
-		recorder: eventBroadcaster.NewRecorder(scheme.Scheme, apiv1.EventSource{
-			Component: "nginx-ingress-controller",
-		}),
-
+		cfg:      config,
 		stopCh:   make(chan struct{}),
-		updateCh: channels.NewRingChannel(1024),
-
 		ngxErrCh: make(chan error),
-
 		stopLock: &sync.Mutex{},
 
 		runningConfig: new(ingress.Configuration),
 
 		Proxy: &TCPProxy{},
 
-		metricCollector: mc,
+		// TODO: implement metric collector
+		//metricCollector: mc,
 
 		command: NewNginxCommand(),
 	}
 
-	if n.cfg.ValidationWebhook != "" {
-		n.validationWebhookServer = &http.Server{
-			Addr:      config.ValidationWebhook,
-			Handler:   adm_controller.NewAdmissionControllerServer(&adm_controller.IngressAdmission{Checker: n}),
-			TLSConfig: ssl.NewTLSListener(n.cfg.ValidationWebhookCertPath, n.cfg.ValidationWebhookKeyPath).TLSConfig(),
-			// disable http/2
-			// https://github.com/kubernetes/kubernetes/issues/80313
-			// https://github.com/kubernetes/ingress-nginx/issues/6323#issuecomment-737239159
-			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
+	// TODO: Should implement the below as part of gRPC comms
+	/*
+		if config.UpdateStatus {
+			n.syncStatus = status.NewStatusSyncer(status.Config{
+				Client:                 config.Client,
+				PublishService:         config.PublishService,
+				PublishStatusAddress:   config.PublishStatusAddress,
+				IngressLister:          n.store,
+				UpdateStatusOnShutdown: config.UpdateStatusOnShutdown,
+				UseNodeInternalIP:      config.UseNodeInternalIP,
+			})
+		} else {
+			klog.Warning("Update of Ingress status is disabled (flag --update-status)")
 		}
-	}
-
-	n.store = store.New(
-		config.Namespace,
-		config.WatchNamespaceSelector,
-		config.ConfigMapName,
-		config.TCPConfigMapName,
-		config.UDPConfigMapName,
-		config.DefaultSSLCertificate,
-		config.ResyncPeriod,
-		config.Client,
-		n.updateCh,
-		config.DisableCatchAll,
-		config.IngressClassConfiguration)
-
-	n.syncQueue = task.NewTaskQueue(n.syncIngress)
-
-	if config.UpdateStatus {
-		n.syncStatus = status.NewStatusSyncer(status.Config{
-			Client:                 config.Client,
-			PublishService:         config.PublishService,
-			PublishStatusAddress:   config.PublishStatusAddress,
-			IngressLister:          n.store,
-			UpdateStatusOnShutdown: config.UpdateStatusOnShutdown,
-			UseNodeInternalIP:      config.UseNodeInternalIP,
-		})
-	} else {
-		klog.Warning("Update of Ingress status is disabled (flag --update-status)")
-	}
+	*/
 
 	onTemplateChange := func() {
 		template, err := ngx_template.NewTemplate(nginx.TemplatePath)
@@ -162,7 +91,6 @@ func NewNGINXController(config *Configuration, mc metric.Collector) *NGINXContro
 
 		n.t = template
 		klog.InfoS("New NGINX configuration template loaded")
-		n.syncQueue.EnqueueTask(task.GetDummyObject("template-change"))
 	}
 
 	ngxTpl, err := ngx_template.NewTemplate(nginx.TemplatePath)
@@ -195,30 +123,25 @@ func NewNGINXController(config *Configuration, mc metric.Collector) *NGINXContro
 		klog.Fatalf("Error creating file watchers: %v", err)
 	}
 
-	for _, f := range filesToWatch {
-		_, err = watch.NewFileWatcher(f, func() {
-			klog.InfoS("File changed detected. Reloading NGINX", "path", f)
-			n.syncQueue.EnqueueTask(task.GetDummyObject("file-change"))
-		})
-		if err != nil {
-			klog.Fatalf("Error creating file watcher for %v: %v", f, err)
+	// TODO: Implement watcher locally so we can reload with latest configuration instead of users changing directly
+	/*
+		for _, f := range filesToWatch {
+			_, err = watch.NewFileWatcher(f, func() {
+				klog.InfoS("File changed detected. Reloading NGINX", "path", f)
+				n.syncQueue.EnqueueTask(task.GetDummyObject("file-change"))
+			})
+			if err != nil {
+				klog.Fatalf("Error creating file watcher for %v: %v", f, err)
+			}
 		}
-	}
+	*/
 
 	return n
 }
 
 // NGINXController describes a NGINX Ingress controller.
 type NGINXController struct {
-	cfg *Configuration
-
-	recorder record.EventRecorder
-
-	syncQueue *task.Queue
-
-	syncStatus status.Syncer
-
-	syncRateLimiter flowcontrol.RateLimiter
+	cfg *ingress.Configuration
 
 	// stopLock is used to enforce that only a single call to Stop send at
 	// a given time. We allow stopping through an HTTP endpoint and
@@ -246,10 +169,11 @@ type NGINXController struct {
 
 	store store.Storer
 
-	metricCollector    metric.Collector
-	admissionCollector metric.Collector
-
-	validationWebhookServer *http.Server
+	// TODO: implement local metrics
+	/*
+		metricCollector    metric.Collector
+		admissionCollector metric.Collector
+	*/
 
 	command NginxExecTester
 }
@@ -263,33 +187,6 @@ type grpcServer struct {
 func (n *NGINXController) Start() {
 	klog.InfoS("Starting NGINX Ingress controller")
 
-	n.store.Run(n.stopCh)
-
-	// we need to use the defined ingress class to allow multiple leaders
-	// in order to update information about ingress status
-	// TODO: For now, as the the IngressClass logics has changed, is up to the
-	// cluster admin to create different Leader Election IDs.
-	// Should revisit this in a future
-	electionID := n.cfg.ElectionID
-
-	setupLeaderElection(&leaderElectionConfig{
-		Client:     n.cfg.Client,
-		ElectionID: electionID,
-		OnStartedLeading: func(stopCh chan struct{}) {
-			if n.syncStatus != nil {
-				go n.syncStatus.Run(stopCh)
-			}
-
-			n.metricCollector.OnStartedLeading(electionID)
-			// manually update SSL expiration metrics
-			// (to not wait for a reload)
-			n.metricCollector.SetSSLExpireTime(n.runningConfig.Servers)
-		},
-		OnStoppedLeading: func() {
-			n.metricCollector.OnStoppedLeading(electionID)
-		},
-	})
-
 	cmd := n.command.ExecCommand()
 
 	// put NGINX in another process group to prevent it
@@ -299,16 +196,15 @@ func (n *NGINXController) Start() {
 		Pgid:    0,
 	}
 
-	if n.cfg.EnableSSLPassthrough {
-		n.setupSSLProxy()
-	}
+	// TODO: Implement SSLProxy
+	/*
+		if n.cfg.EnableSSLPassthrough {
+			n.setupSSLProxy()
+		}
+	*/
 
 	klog.InfoS("Starting NGINX process")
 	n.start(cmd)
-
-	go n.syncQueue.Run(time.Second, n.stopCh)
-	// force initial sync
-	n.syncQueue.EnqueueTask(task.GetDummyObject("initial-sync"))
 
 	// In case of error the temporal configuration file will
 	// be available up to five minutes after the error
@@ -322,24 +218,7 @@ func (n *NGINXController) Start() {
 		}
 	}()
 
-	if n.validationWebhookServer != nil {
-		klog.InfoS("Starting validation webhook", "address", n.validationWebhookServer.Addr,
-			"certPath", n.cfg.ValidationWebhookCertPath, "keyPath", n.cfg.ValidationWebhookKeyPath)
-		go func() {
-			klog.ErrorS(n.validationWebhookServer.ListenAndServeTLS("", ""), "Error listening for TLS connections")
-		}()
-	}
-	// TODO: GRPC TEST!
-	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", 11111))
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
-	grpcListener := grpc.NewServer()
-
-	pb.RegisterConfigWatcherServer(grpcListener, &grpcServer{n: n})
-	go func() {
-		klog.ErrorS(grpcListener.Serve(lis), "error creating gRPC Server")
-	}()
+	// TODO: Implement a goroutine calling the gRPC server + receiving via channel the new configs
 
 	for {
 		select {
@@ -358,19 +237,8 @@ func (n *NGINXController) Start() {
 			if n.isShuttingDown {
 				break
 			}
+			// TODO: Implement the event as part of gRPC watcher instead of just doing the reconfig
 
-			if evt, ok := event.(store.Event); ok {
-				klog.V(3).InfoS("Event received", "type", evt.Type, "object", evt.Obj)
-				if evt.Type == store.ConfigurationEvent {
-					// TODO: is this necessary? Consider removing this special case
-					n.syncQueue.EnqueueTask(task.GetDummyObject("configmap-change"))
-					continue
-				}
-
-				n.syncQueue.EnqueueSkippableTask(evt.Obj)
-			} else {
-				klog.Warningf("Unexpected event type received %T", event)
-			}
 		case <-n.stopCh:
 			return
 		}
@@ -384,26 +252,9 @@ func (n *NGINXController) Stop() error {
 	n.stopLock.Lock()
 	defer n.stopLock.Unlock()
 
-	if n.syncQueue.IsShuttingDown() {
-		return fmt.Errorf("shutdown already in progress")
-	}
+	// TODO: implement
 
-	time.Sleep(time.Duration(n.cfg.ShutdownGracePeriod) * time.Second)
-
-	klog.InfoS("Shutting down controller queues")
-	close(n.stopCh)
-	go n.syncQueue.Shutdown()
-	if n.syncStatus != nil {
-		n.syncStatus.Shutdown()
-	}
-
-	if n.validationWebhookServer != nil {
-		klog.InfoS("Stopping admission controller")
-		err := n.validationWebhookServer.Close()
-		if err != nil {
-			return err
-		}
-	}
+	//time.Sleep(time.Duration(n.cfg.ShutdownGracePeriod) * time.Second)
 
 	// send stop signal to NGINX
 	klog.InfoS("Stopping NGINX process")
@@ -446,50 +297,56 @@ func (n *NGINXController) start(cmd *exec.Cmd) {
 func (n NGINXController) DefaultEndpoint() ingress.Endpoint {
 	return ingress.Endpoint{
 		Address: "127.0.0.1",
-		Port:    fmt.Sprintf("%v", n.cfg.ListenPorts.Default),
-		Target:  &apiv1.ObjectReference{},
+		Port:    "8080",
+		// TODO: Get this properly
+		//Port:    fmt.Sprintf("%v", n.cfg.ListenPorts.Default),
+		Target: &apiv1.ObjectReference{},
 	}
 }
 
 // generateTemplate returns the nginx configuration file content
 func (n NGINXController) generateTemplate(cfg ngx_config.Configuration, ingressCfg ingress.Configuration) ([]byte, error) {
 
-	if n.cfg.EnableSSLPassthrough {
-		servers := []*TCPServer{}
-		for _, pb := range ingressCfg.PassthroughBackends {
-			svc := pb.Service
-			if svc == nil {
-				klog.Warningf("Missing Service for SSL Passthrough backend %q", pb.Backend)
-				continue
-			}
-			port, err := strconv.Atoi(pb.Port.String()) // #nosec
-			if err != nil {
-				for _, sp := range svc.Spec.Ports {
-					if sp.Name == pb.Port.String() {
-						port = int(sp.Port)
-						break
+	// TODO: Implement SSLPassthrough messages in gRPC
+	/*
+		if n.cfg.EnableSSLPassthrough {
+			servers := []*TCPServer{}
+			for _, pb := range ingressCfg.PassthroughBackends {
+				svc := pb.Service
+				if svc == nil {
+					klog.Warningf("Missing Service for SSL Passthrough backend %q", pb.Backend)
+					continue
+				}
+				port, err := strconv.Atoi(pb.Port.String()) // #nosec
+				if err != nil {
+					for _, sp := range svc.Spec.Ports {
+						if sp.Name == pb.Port.String() {
+							port = int(sp.Port)
+							break
+						}
+					}
+				} else {
+					for _, sp := range svc.Spec.Ports {
+						if sp.Port == int32(port) {
+							port = int(sp.Port)
+							break
+						}
 					}
 				}
-			} else {
-				for _, sp := range svc.Spec.Ports {
-					if sp.Port == int32(port) {
-						port = int(sp.Port)
-						break
-					}
-				}
+
+				// TODO: Allow PassthroughBackends to specify they support proxy-protocol
+				servers = append(servers, &TCPServer{
+					Hostname:      pb.Hostname,
+					IP:            svc.Spec.ClusterIP,
+					Port:          port,
+					ProxyProtocol: false,
+				})
 			}
 
-			// TODO: Allow PassthroughBackends to specify they support proxy-protocol
-			servers = append(servers, &TCPServer{
-				Hostname:      pb.Hostname,
-				IP:            svc.Spec.ClusterIP,
-				Port:          port,
-				ProxyProtocol: false,
-			})
+			n.Proxy.ServerList = servers
 		}
 
-		n.Proxy.ServerList = servers
-	}
+	*/
 
 	// NGINX cannot resize the hash tables used to store server names. For
 	// this reason we check if the current size is correct for the host
@@ -658,73 +515,6 @@ Error: %v
 	return nil
 }
 
-// OnUpdate is called by the synchronization loop whenever configuration
-// changes were detected. The received backend Configuration is merged with the
-// configuration ConfigMap before generating the final configuration file.
-// Returns nil in case the backend was successfully reloaded.
-func (n *NGINXController) OnUpdate(ingressCfg ingress.Configuration) error {
-	cfg := n.store.GetBackendConfiguration()
-	cfg.Resolver = n.resolver
-
-	content, err := n.generateTemplate(cfg, ingressCfg)
-	if err != nil {
-		return err
-	}
-
-	err = createOpentracingCfg(cfg)
-	if err != nil {
-		return err
-	}
-
-	err = n.testTemplate(content)
-	if err != nil {
-		return err
-	}
-
-	if klog.V(2).Enabled() {
-		src, _ := os.ReadFile(cfgPath)
-		if !bytes.Equal(src, content) {
-			tmpfile, err := os.CreateTemp("", "new-nginx-cfg")
-			if err != nil {
-				return err
-			}
-			defer tmpfile.Close()
-			err = os.WriteFile(tmpfile.Name(), content, file.ReadWriteByUser)
-			if err != nil {
-				return err
-			}
-
-			diffOutput, err := exec.Command("diff", "-I", "'# Configuration.*'", "-u", cfgPath, tmpfile.Name()).CombinedOutput()
-			if err != nil {
-				if exitError, ok := err.(*exec.ExitError); ok {
-					ws := exitError.Sys().(syscall.WaitStatus)
-					if ws.ExitStatus() == 2 {
-						klog.Warningf("Failed to executing diff command: %v", err)
-					}
-				}
-			}
-
-			klog.InfoS("NGINX configuration change", "diff", string(diffOutput))
-
-			// we do not defer the deletion of temp files in order
-			// to keep them around for inspection in case of error
-			os.Remove(tmpfile.Name())
-		}
-	}
-
-	err = os.WriteFile(cfgPath, content, file.ReadWriteByUser)
-	if err != nil {
-		return err
-	}
-
-	o, err := n.command.ExecCommand("-s", "reload").CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%v\n%v", err, string(o))
-	}
-
-	return nil
-}
-
 // nginxHashBucketSize computes the correct NGINX hash_bucket_size for a hash
 // with the given longest key.
 func nginxHashBucketSize(longestString int) int {
@@ -750,6 +540,8 @@ func nextPowerOf2(v int) int {
 	return v
 }
 
+// TODO: implement SSL Proxy
+/*
 func (n *NGINXController) setupSSLProxy() {
 	cfg := n.store.GetBackendConfiguration()
 	sslPort := n.cfg.ListenPorts.HTTPS
@@ -796,7 +588,7 @@ func (n *NGINXController) setupSSLProxy() {
 		}
 	}()
 }
-
+*/
 // Helper function to clear Certificates from the ingress configuration since they should be ignored when
 // checking if the new configuration changes can be applied dynamically if dynamic certificates is on
 func clearCertificates(config *ingress.Configuration) {

@@ -215,6 +215,18 @@ func (n *NGINXController) syncIngress(interface{}) error {
 	return nil
 }
 
+/*
+func (n *NGINXController) sendToGRPC(configs *ingress.Configuration) error {
+	payload, err := json.Marshal(configs)
+	if err != nil {
+		return err
+	}
+
+	lal :
+
+	return nil
+}*/
+
 // CheckIngress returns an error in case the provided ingress, when added
 // to the current configuration, generates an invalid configuration
 func (n *NGINXController) CheckIngress(ing *networking.Ingress) error {
