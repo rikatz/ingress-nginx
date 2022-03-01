@@ -285,6 +285,10 @@ func (n *NGINXController) CheckIngress(ing *networking.Ingress) error {
 
 	}
 
+	if err := k8s.ContainsInvalidPath(ing); err != nil {
+		return err
+	}
+
 	k8s.SetDefaultNGINXPathType(ing)
 
 	allIngresses := n.store.ListIngresses()

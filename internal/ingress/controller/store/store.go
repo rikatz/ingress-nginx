@@ -833,6 +833,11 @@ func (s *k8sStore) syncIngress(ing *networkingv1.Ingress) {
 		}
 	}
 
+	if err := k8s.ContainsInvalidPath(ing); err != nil {
+		klog.Warningf("skipping ingress %s: %s", key, err)
+		return
+	}
+
 	ing.Spec.DeepCopyInto(&copyIng.Spec)
 	ing.Status.DeepCopyInto(&copyIng.Status)
 

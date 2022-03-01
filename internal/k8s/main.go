@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"k8s.io/klog/v2"
@@ -168,4 +169,27 @@ func SetDefaultNGINXPathType(ing *networkingv1.Ingress) {
 			}
 		}
 	}
+}
+
+// ValidPath:
+// /lalala/blabla/123/xpto_123-lala
+// //lalala//blabla/123/xpto_123-lala
+// InvalidPath:
+// /lalala/blabla/123/xpto_123-lala;xpto123
+var validPath = regexp.MustCompile(`^[\w/-]*$`)
+
+// ContainsInvalidPath checks if this ingress object contains an invalid Path and returns an error
+func ContainsInvalidPath(ing *networkingv1.Ingress) error {
+	for _, rule := range ing.Spec.Rules {
+		if rule.IngressRuleValue.HTTP == nil {
+			continue
+		}
+
+		for _, path := range rule.IngressRuleValue.HTTP.Paths {
+			if path.Path != "" && !validPath.MatchString(path.Path) {
+				return fmt.Errorf("ingress contains invalid path: %s", path.Path)
+			}
+		}
+	}
+	return nil
 }
