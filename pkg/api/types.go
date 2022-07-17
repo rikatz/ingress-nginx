@@ -78,29 +78,29 @@ type Configuration struct {
 // +k8s:deepcopy-gen=true
 type Backend struct {
 	// Name represents an unique apiv1.Service name formatted as <namespace>-<name>-<port>
-	Name    string             `json:"name"`
-	Service *apiv1.Service     `json:"service,omitempty"`
-	Port    intstr.IntOrString `json:"port"`
+	Name    string             `json:"name" protobuf:"bytes,1,name=name"`
+	Service *apiv1.Service     `json:"service,omitempty" protobuf:"bytes,2,name=service"`
+	Port    intstr.IntOrString `json:"port" protobuf:"bytes,3,opt,name=port"`
 	// SSLPassthrough indicates that Ingress controller will delegate TLS termination to the endpoints.
-	SSLPassthrough bool `json:"sslPassthrough"`
+	SSLPassthrough bool `json:"sslPassthrough" protobuf:"varint,4,opt,name=sslpassthrough"`
 	// Endpoints contains the list of endpoints currently running
-	Endpoints []Endpoint `json:"endpoints,omitempty"`
+	Endpoints []Endpoint `json:"endpoints,omitempty" protobuf:"bytes,5,rep,name=endpoints"`
 	// StickySessionAffinitySession contains the StickyConfig object with stickiness configuration
-	SessionAffinity SessionAffinityConfig `json:"sessionAffinityConfig"`
+	SessionAffinity SessionAffinityConfig `json:"sessionAffinityConfig" protobuf:"bytes,6,opt,name=sessionaffinity"`
 	// Consistent hashing by NGINX variable
-	UpstreamHashBy UpstreamHashByConfig `json:"upstreamHashByConfig,omitempty"`
+	UpstreamHashBy UpstreamHashByConfig `json:"upstreamHashByConfig,omitempty" protobuf:"bytes,7,opt,name=upstreamhashby"`
 	// LB algorithm configuration per ingress
-	LoadBalancing string `json:"load-balance,omitempty"`
+	LoadBalancing string `json:"load-balance,omitempty" protobuf:"bytes,8,opt,name=loadbalancing"`
 	// Denotes if a backend has no server. The backend instead shares a server with another backend and acts as an
 	// alternative backend.
 	// This can be used to share multiple upstreams in the sam nginx server block.
-	NoServer bool `json:"noServer"`
+	NoServer bool `json:"noServer" protobuf:"varint,9,opt,name=noserver"`
 	// Policies to describe the characteristics of an alternative backend.
 	// +optional
-	TrafficShapingPolicy TrafficShapingPolicy `json:"trafficShapingPolicy,omitempty"`
+	TrafficShapingPolicy TrafficShapingPolicy `json:"trafficShapingPolicy,omitempty" protobuf:"bytes,10,opt,name=trafficshappingpolicy"`
 	// Contains a list of backends without servers that are associated with this backend.
 	// +optional
-	AlternativeBackends []string `json:"alternativeBackends,omitempty"`
+	AlternativeBackends []string `json:"alternativeBackends,omitempty" protobuf:"bytes,11,rep,name=alternativebackends"`
 }
 
 // TrafficShapingPolicy describes the policies to put in place when a backend has no server and is used as an
@@ -113,17 +113,17 @@ type TrafficShapingPolicy struct {
 	// <WeightTotal> is set to 1000, weight 2 means 0.2% of traffic will be
 	// redirected to the backend and 99.8% will remain with the other backend.
 	// 0 weight will not send any traffic to this backend
-	Weight int `json:"weight"`
+	Weight int `json:"weight" protobuf:"varint,1,opt,name=weight"`
 	// The total weight of traffic (>= 100). If unspecified, it defaults to 100.
-	WeightTotal int `json:"weightTotal"`
+	WeightTotal int `json:"weightTotal" protobuf:"varint,2,opt,name=weighttotal"`
 	// Header on which to redirect requests to this backend
-	Header string `json:"header"`
+	Header string `json:"header" protobuf:"bytes,3,opt,name=header"`
 	// HeaderValue on which to redirect requests to this backend
-	HeaderValue string `json:"headerValue"`
+	HeaderValue string `json:"headerValue" protobuf:"bytes,4,opt,name=headervalue"`
 	// HeaderPattern the header value match pattern, support exact, regex.
-	HeaderPattern string `json:"headerPattern"`
+	HeaderPattern string `json:"headerPattern" protobuf:"bytes,5,opt,name=headerpattern"`
 	// Cookie on which to redirect requests to this backend
-	Cookie string `json:"cookie"`
+	Cookie string `json:"cookie" protobuf:"bytes,6,opt,name=cookie"`
 }
 
 // HashInclude defines if a field should be used or not to calculate the hash
@@ -174,11 +174,11 @@ type UpstreamHashByConfig struct {
 // +k8s:deepcopy-gen=true
 type Endpoint struct {
 	// Address IP address of the endpoint
-	Address string `json:"address"`
+	Address string `json:"address" protobuf:"bytes,1,opt,name=address"`
 	// Port number of the TCP port
-	Port string `json:"port"`
+	Port string `json:"port" protobuf:"bytes,2,opt,name=port"`
 	// Target returns a reference to the object providing the endpoint
-	Target *apiv1.ObjectReference `json:"target,omitempty"`
+	Target *apiv1.ObjectReference `json:"target,omitempty" protobuf:"bytes,3,opt,name=target"`
 }
 
 // Server describes a website
@@ -382,11 +382,11 @@ type L4Service struct {
 // L4Backend describes the kubernetes service behind L4 Ingress service
 type L4Backend struct {
 	Port      intstr.IntOrString `json:"port" protobuf:"bytes,1,opt,name=port"`
-	Name      string             `json:"name"`
-	Namespace string             `json:"namespace"`
-	Protocol  apiv1.Protocol     `json:"protocol" protobuf:"bytes,2,opt,name=protocol,casttype=Protocol"`
+	Name      string             `json:"name" protobuf:"bytes,2,opt,name=name"`
+	Namespace string             `json:"namespace" protobuf:"bytes,3,opt,name=namespace"`
+	Protocol  apiv1.Protocol     `json:"protocol" protobuf:"bytes,4,opt,name=protocol,casttype=Protocol"`
 	// +optional
-	ProxyProtocol ProxyProtocol `json:"proxyProtocol"`
+	ProxyProtocol ProxyProtocol `json:"proxyProtocol" protobuf:"bytes,4,opt,name=proxyprotocol"`
 }
 
 // ProxyProtocol describes the proxy protocol configuration
