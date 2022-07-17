@@ -33,12 +33,9 @@ chmod +x ${CODEGEN_PKG}/generate-groups.sh
 # --output-base    because this script should also be able to run inside the vendor dir of
 #                  k8s.io/kubernetes. The output-base is needed for the generators to output into the vendor dir
 #                  instead of the $GOPATH directly. For normal projects this can be dropped.
-#${CODEGEN_PKG}/generate-groups.sh "deepcopy,client,informer,lister" \
-#  k8s.io/ingress-nginx/pkg/client k8s.io/ingress-nginx/pkg/apis \
-#  nginxingress:v1alpha1 \
-#  --output-base "$(dirname ${BASH_SOURCE})/../../.."
+
 ${CODEGEN_PKG}/generate-groups.sh "deepcopy" \
-  k8s.io/ingress-nginx/internal k8s.io/ingress-nginx/internal \
-  .:ingress \
+  k8s.io/ingress-nginx/pkg k8s.io/ingress-nginx/pkg \
+  .:api \
   --output-base "$(dirname ${BASH_SOURCE})/../../.." \
   --go-header-file ${SCRIPT_ROOT}/hack/boilerplate/boilerplate.generated.go.txt

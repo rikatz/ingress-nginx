@@ -23,14 +23,15 @@ import (
 	"strconv"
 	"strings"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/validation"
-	"k8s.io/klog/v2"
 
-	corev1 "k8s.io/api/core/v1"
-
-	"k8s.io/ingress-nginx/internal/ingress"
 	"k8s.io/ingress-nginx/internal/k8s"
+	klog "k8s.io/klog/v2"
+
+	ingress "k8s.io/ingress-nginx/pkg/api"
+
 )
 
 // getEndpoints returns a list of Endpoint structs for a given service/target port combination.

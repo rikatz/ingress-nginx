@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package ingress
+package api
 
 import (
 	apiv1 "k8s.io/api/core/v1"
@@ -42,42 +42,36 @@ import (
 	"k8s.io/ingress-nginx/internal/ingress/annotations/rewrite"
 )
 
-var (
-	// DefaultSSLDirectory defines the location where the SSL certificates will be generated
-	// This directory contains all the SSL certificates that are specified in Ingress rules.
-	// The name of each file is <namespace>-<secret name>.pem. The content is the concatenated
-	// certificate and key.
-	DefaultSSLDirectory = "/ingress-controller/ssl"
-)
+// +k8s:protobuf-gen=package
 
 // Configuration holds the definition of all the parts required to describe all
 // ingresses reachable by the ingress controller (using a filter by namespace)
 type Configuration struct {
 	// Backends are a list of backends used by all the Ingress rules in the
 	// ingress controller. This list includes the default backend
-	Backends []*Backend `json:"backends,omitempty"`
+	Backends []*Backend `json:"backends,omitempty" protobuf:"bytes,1,rep,name=backends"`
 	// Servers save the website config
-	Servers []*Server `json:"servers,omitempty"`
+	Servers []*Server `json:"servers,omitempty" protobuf:"bytes,2,rep,name=servers"`
 	// TCPEndpoints contain endpoints for tcp streams handled by this backend
 	// +optional
-	TCPEndpoints []L4Service `json:"tcpEndpoints,omitempty"`
+	TCPEndpoints []L4Service `json:"tcpEndpoints,omitempty" protobuf:"bytes,3,rep,name=tcpendpoints"`
 	// UDPEndpoints contain endpoints for udp streams handled by this backend
 	// +optional
-	UDPEndpoints []L4Service `json:"udpEndpoints,omitempty"`
+	UDPEndpoints []L4Service `json:"udpEndpoints,omitempty" protobuf:"bytes,4,rep,name=udpendpoints"`
 	// PassthroughBackends contains the backends used for SSL passthrough.
 	// It contains information about the associated Server Name Indication (SNI).
 	// +optional
-	PassthroughBackends []*SSLPassthroughBackend `json:"passthroughBackends,omitempty"`
+	PassthroughBackends []*SSLPassthroughBackend `json:"passthroughBackends,omitempty" protobuf:"bytes,5,rep,name=sslpassthroughbackend"`
 
 	// BackendConfigChecksum contains the particular checksum of a Configuration object
-	BackendConfigChecksum string `json:"BackendConfigChecksum,omitempty"`
+	BackendConfigChecksum string `json:"BackendConfigChecksum,omitempty" protobuf:"bytes,6,name=backendconfigchecksum"`
 
 	// ConfigurationChecksum contains the particular checksum of a Configuration object
-	ConfigurationChecksum string `json:"configurationChecksum,omitempty"`
+	ConfigurationChecksum string `json:"configurationChecksum,omitempty" protobuf:"bytes,7,name=configurationchecksum"`
 
-	DefaultSSLCertificate *SSLCert `json:"-"`
+	DefaultSSLCertificate *SSLCert `json:"-" protobuf:"bytes,8,name=defaultsslcertificate"`
 
-	StreamSnippets []string
+	StreamSnippets []string `protobuf:"bytes,9,rep,name=streamsnippets"`
 }
 
 // Backend describes one or more remote server/s (endpoints) associated with a service
@@ -387,10 +381,10 @@ type L4Service struct {
 
 // L4Backend describes the kubernetes service behind L4 Ingress service
 type L4Backend struct {
-	Port      intstr.IntOrString `json:"port"`
+	Port      intstr.IntOrString `json:"port" protobuf:"bytes,1,opt,name=port"`
 	Name      string             `json:"name"`
 	Namespace string             `json:"namespace"`
-	Protocol  apiv1.Protocol     `json:"protocol"`
+	Protocol  apiv1.Protocol     `json:"protocol" protobuf:"bytes,2,opt,name=protocol,casttype=Protocol"`
 	// +optional
 	ProxyProtocol ProxyProtocol `json:"proxyProtocol"`
 }

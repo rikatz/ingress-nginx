@@ -20,11 +20,11 @@ import (
 	"strconv"
 	"time"
 
-	"k8s.io/klog/v2"
-
 	apiv1 "k8s.io/api/core/v1"
+	ingress "k8s.io/ingress-nginx/pkg/api"
 
-	"k8s.io/ingress-nginx/internal/ingress"
+	klog "k8s.io/klog/v2"
+
 	"k8s.io/ingress-nginx/internal/ingress/defaults"
 	"k8s.io/ingress-nginx/internal/runtime"
 )

@@ -21,7 +21,7 @@ import (
 	"strings"
 
 	networking "k8s.io/api/networking/v1"
-	"k8s.io/ingress-nginx/internal/ingress"
+	ingress "k8s.io/ingress-nginx/pkg/api"
 )
 
 var (

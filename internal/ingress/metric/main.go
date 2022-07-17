@@ -22,11 +22,11 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"k8s.io/klog/v2"
+	klog "k8s.io/klog/v2"
 
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/ingress-nginx/internal/ingress"
 	"k8s.io/ingress-nginx/internal/ingress/metric/collectors"
+	ingress "k8s.io/ingress-nginx/pkg/api"
 )
 
 // Collector defines the interface for a metric collector

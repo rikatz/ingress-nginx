@@ -18,7 +18,7 @@ package metric
 
 import (
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/ingress-nginx/internal/ingress"
+	ingress "k8s.io/ingress-nginx/pkg/api"
 )
 
 // NewDummyCollector returns a dummy metric collector

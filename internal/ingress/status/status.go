@@ -25,18 +25,16 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/klog/v2"
-
 	pool "gopkg.in/go-playground/pool.v3"
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	clientset "k8s.io/client-go/kubernetes"
-
-	"k8s.io/ingress-nginx/internal/ingress"
 	"k8s.io/ingress-nginx/internal/k8s"
 	"k8s.io/ingress-nginx/internal/task"
+	ingress "k8s.io/ingress-nginx/pkg/api"
+	klog "k8s.io/klog/v2"
 )
 
 // UpdateInterval defines the time interval, in seconds, in

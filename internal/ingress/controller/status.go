@@ -21,8 +21,7 @@ import (
 	"os"
 	"time"
 
-	"k8s.io/ingress-nginx/internal/k8s"
-	"k8s.io/klog/v2"
+	klog "k8s.io/klog/v2"
 
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,6 +30,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/ingress-nginx/internal/k8s"
 )
 
 type leaderElectionConfig struct {

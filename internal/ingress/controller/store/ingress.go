@@ -19,7 +19,7 @@ package store
 import (
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/ingress-nginx/internal/ingress"
+	ingress "k8s.io/ingress-nginx/pkg/api"
 )
 
 // IngressLister makes a Store that lists Ingress.
