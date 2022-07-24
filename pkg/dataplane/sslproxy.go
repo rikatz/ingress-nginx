@@ -21,7 +21,6 @@ import (
 	"net"
 
 	proxyproto "github.com/armon/go-proxyproto"
-	"k8s.io/ingress-nginx/internal/ingress/controller/config"
 	"k8s.io/ingress-nginx/pkg/tcpproxy"
 
 	"k8s.io/klog/v2"
@@ -29,7 +28,7 @@ import (
 
 func (n *NGINXConfigurer) setupSSLProxy() {
 	// TODO: Get the Configuration below via gRPC: do a GetConfiguration that returns the running ConfigMap from Control Plane
-	cfg := config.Configuration{}
+	cfg := n.GetBackendConfiguration()
 	sslPort := n.cfg.ListenPorts.HTTPS
 	proxyPort := n.cfg.ListenPorts.SSLProxy
 
@@ -57,7 +56,6 @@ func (n *NGINXConfigurer) setupSSLProxy() {
 			var err error
 
 			// TODO: Understand this thing :)
-			//if n.store.GetBackendConfiguration().UseProxyProtocol {
 			if cfg.UseProxyProtocol {
 				// wrap the listener in order to decode Proxy
 				// Protocol before handling the connection

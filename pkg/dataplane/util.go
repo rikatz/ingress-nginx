@@ -196,3 +196,28 @@ func cleanTempNginxCfg() error {
 
 	return nil
 }
+
+// nginxHashBucketSize computes the correct NGINX hash_bucket_size for a hash
+// with the given longest key.
+func nginxHashBucketSize(longestString int) int {
+	// see https://github.com/kubernetes/ingress-nginxs/issues/623 for an explanation
+	wordSize := 8 // Assume 64 bit CPU
+	n := longestString + 2
+	aligned := (n + wordSize - 1) & ^(wordSize - 1)
+	rawSize := wordSize + wordSize + aligned
+	return nextPowerOf2(rawSize)
+}
+
+// http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
+// https://play.golang.org/p/TVSyCcdxUh
+func nextPowerOf2(v int) int {
+	v--
+	v |= v >> 1
+	v |= v >> 2
+	v |= v >> 4
+	v |= v >> 8
+	v |= v >> 16
+	v++
+
+	return v
+}

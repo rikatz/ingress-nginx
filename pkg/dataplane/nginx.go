@@ -17,6 +17,8 @@ limitations under the License.
 package dataplane
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -175,7 +177,8 @@ func (n *NGINXConfigurer) Start() {
 				return
 			}
 
-		// TODO: Implement below, which is the main loop to resync / configure NGINX
+		// TODO: Implement below, which is the main loop to resync / configure NGINX. This is the part that will watch
+		// gRPC events and trigger NGINX reload or not
 		/*
 			case event := <-n.updateCh.Out():
 				if n.isShuttingDown {
@@ -244,4 +247,38 @@ func (n *NGINXConfigurer) start(cmd *exec.Cmd) {
 	go func() {
 		n.ngxErrCh <- cmd.Wait()
 	}()
+}
+
+// TODO: Shall we test this in both places? (CP and DP)
+// testTemplate checks if the NGINX configuration inside the byte array is valid
+// running the command "nginx -t" using a temporal file.
+func (n NGINXConfigurer) testTemplate(cfg []byte) error {
+	if len(cfg) == 0 {
+		return fmt.Errorf("invalid NGINX configuration (empty)")
+	}
+	tmpDir := os.TempDir() + "/nginx"
+	tmpfile, err := os.CreateTemp(tmpDir, tempNginxPattern)
+	if err != nil {
+		return err
+	}
+	defer tmpfile.Close()
+	err = os.WriteFile(tmpfile.Name(), cfg, file.ReadWriteByUser)
+	if err != nil {
+		return err
+	}
+	out, err := n.command.Test(tmpfile.Name())
+	if err != nil {
+		// this error is different from the rest because it must be clear why nginx is not working
+		oe := fmt.Sprintf(`
+-------------------------------------------------------------------------------
+Error: %v
+%v
+-------------------------------------------------------------------------------
+`, err, string(out))
+
+		return errors.New(oe)
+	}
+
+	os.Remove(tmpfile.Name())
+	return nil
 }
