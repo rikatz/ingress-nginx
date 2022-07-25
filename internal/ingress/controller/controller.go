@@ -23,14 +23,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mitchellh/hashstructure"
 	apiv1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/apimachinery/pkg/util/wait"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/ingress-nginx/internal/ingress/annotations"
 	"k8s.io/ingress-nginx/internal/ingress/annotations/log"
@@ -46,6 +44,8 @@ import (
 	"k8s.io/ingress-nginx/internal/nginx"
 	"k8s.io/ingress-nginx/pkg/apis/ingress"
 	"k8s.io/klog/v2"
+
+	"google.golang.org/grpc"
 )
 
 const (
@@ -128,6 +128,10 @@ type Configuration struct {
 	DeepInspector         bool
 
 	DynamicConfigurationRetries int
+
+	// TODO: Fix to a better parsing
+	GRPCPort int
+	GRPCOpts []grpc.ServerOption
 }
 
 // GetPublishService returns the Service used to set the load-balancer status of Ingresses.
@@ -157,72 +161,13 @@ func (n *NGINXController) syncIngress(interface{}) error {
 	n.metricCollector.SetSSLInfo(servers)
 
 	if n.runningConfig.Equal(pcfg) {
-		klog.V(3).Infof("No configuration change detected, skipping backend reload")
+		klog.V(3).Infof("No configuration change detected, skipping")
 		return nil
 	}
 
 	n.metricCollector.SetHosts(hosts)
 
-	if !n.IsDynamicConfigurationEnough(pcfg) {
-		klog.InfoS("Configuration changes detected, backend reload required")
-
-		hash, _ := hashstructure.Hash(pcfg, &hashstructure.HashOptions{
-			TagName: "json",
-		})
-
-		pcfg.ConfigurationChecksum = fmt.Sprintf("%v", hash)
-
-		err := n.OnUpdate(*pcfg)
-		if err != nil {
-			n.metricCollector.IncReloadErrorCount()
-			n.metricCollector.ConfigSuccess(hash, false)
-			klog.Errorf("Unexpected failure reloading the backend:\n%v", err)
-			n.recorder.Eventf(k8s.IngressPodDetails, apiv1.EventTypeWarning, "RELOAD", fmt.Sprintf("Error reloading NGINX: %v", err))
-			return err
-		}
-
-		klog.InfoS("Backend successfully reloaded")
-		n.metricCollector.ConfigSuccess(hash, true)
-		n.metricCollector.IncReloadCount()
-
-		n.recorder.Eventf(k8s.IngressPodDetails, apiv1.EventTypeNormal, "RELOAD", "NGINX reload triggered due to a change in configuration")
-	}
-
-	isFirstSync := n.runningConfig.Equal(&ingress.Configuration{})
-	if isFirstSync {
-		// For the initial sync it always takes some time for NGINX to start listening
-		// For large configurations it might take a while so we loop and back off
-		klog.InfoS("Initial sync, sleeping for 1 second")
-		time.Sleep(1 * time.Second)
-	}
-
-	retry := wait.Backoff{
-		Steps:    1 + n.cfg.DynamicConfigurationRetries,
-		Duration: time.Second,
-		Factor:   1.3,
-		Jitter:   0.1,
-	}
-
-	retriesRemaining := retry.Steps
-	err := wait.ExponentialBackoff(retry, func() (bool, error) {
-		err := n.configureDynamically(pcfg)
-		if err == nil {
-			klog.V(2).Infof("Dynamic reconfiguration succeeded.")
-			return true, nil
-		}
-		retriesRemaining--
-		if retriesRemaining > 0 {
-			klog.Warningf("Dynamic reconfiguration failed (retrying; %d retries left): %v", retriesRemaining, err)
-			return false, nil
-		}
-		klog.Warningf("Dynamic reconfiguration failed: %v", err)
-		return false, err
-	})
-	if err != nil {
-		klog.Errorf("Unexpected failure reconfiguring NGINX:\n%v", err)
-		return err
-	}
-
+	// TODO: Should this metric be in CP or DP?
 	ri := getRemovedIngresses(n.runningConfig, pcfg)
 	re := getRemovedHosts(n.runningConfig, pcfg)
 	rc := getRemovedCertificateSerialNumbers(n.runningConfig, pcfg)

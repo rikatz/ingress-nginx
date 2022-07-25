@@ -60,6 +60,8 @@ import (
 	"k8s.io/ingress-nginx/internal/task"
 	"k8s.io/ingress-nginx/pkg/apis/ingress"
 
+	"google.golang.org/grpc"
+
 	"k8s.io/ingress-nginx/pkg/util/file"
 	klog "k8s.io/klog/v2"
 )
@@ -68,6 +70,16 @@ const (
 	tempNginxPattern = "nginx-cfg"
 	emptyUID         = "-1"
 )
+
+// TODO: move somewhere else
+type eventserver struct {
+	ingress.UnimplementedEventServiceServer
+	recorder record.EventRecorder
+}
+
+type configurationserver struct {
+	ingress.UnimplementedConfigurationServer
+}
 
 // NewNGINXController creates a new NGINX Ingress controller.
 func NewNGINXController(config *Configuration, mc metric.Collector) *NGINXController {
@@ -153,14 +165,14 @@ func NewNGINXController(config *Configuration, mc metric.Collector) *NGINXContro
 	}
 
 	onTemplateChange := func() {
-		template, err := ngx_template.NewTemplate(nginx.TemplatePath)
+		ingresstemplate, err := ngx_template.NewTemplate(nginx.TemplatePath)
 		if err != nil {
 			// this error is different from the rest because it must be clear why nginx is not working
 			klog.ErrorS(err, "Error loading new template")
 			return
 		}
 
-		n.t = template
+		n.t = ingresstemplate
 		klog.InfoS("New NGINX configuration template loaded")
 		n.syncQueue.EnqueueTask(task.GetDummyObject("template-change"))
 	}
@@ -204,6 +216,9 @@ func NewNGINXController(config *Configuration, mc metric.Collector) *NGINXContro
 			klog.Fatalf("Error creating file watcher for %v: %v", f, err)
 		}
 	}
+
+	// TODO: ENFORCE TLS
+	n.gRPCServer = grpc.NewServer(config.GRPCOpts...)
 
 	return n
 }
@@ -250,6 +265,8 @@ type NGINXController struct {
 	admissionCollector metric.Collector
 
 	validationWebhookServer *http.Server
+
+	gRPCServer *grpc.Server
 
 	command NginxExecTester
 }
@@ -323,6 +340,20 @@ func (n *NGINXController) Start() {
 			"certPath", n.cfg.ValidationWebhookCertPath, "keyPath", n.cfg.ValidationWebhookKeyPath)
 		go func() {
 			klog.ErrorS(n.validationWebhookServer.ListenAndServeTLS("", ""), "Error listening for TLS connections")
+		}()
+	}
+
+	if n.gRPCServer != nil {
+		klog.InfoS("Starting grpc server", "port", n.cfg.GRPCPort)
+		ingress.RegisterEventServiceServer(n.gRPCServer, &eventserver{recorder: n.recorder})
+		ingress.RegisterConfigurationServer(n.gRPCServer, &configurationserver{})
+
+		lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", n.cfg.GRPCPort))
+		if err != nil {
+			klog.Fatalf("failed to listen: %v", err)
+		}
+		go func() {
+			klog.ErrorS(n.gRPCServer.Serve(lis), "failed to start gRPC Server")
 		}()
 	}
 
