@@ -18,20 +18,14 @@ package controller
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
-	"path"
-	"strconv"
-	"strings"
-	"syscall"
 
 	api "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/ingress-nginx/pkg/apis/ingress"
-	klog "k8s.io/klog/v2"
 )
 
+// TODO: Add unit tests here
 // newUpstream creates an upstream without servers.
 func newUpstream(name string) *ingress.Backend {
 	return &ingress.Backend{
@@ -71,89 +65,4 @@ func upstreamServiceNameAndPort(service *networking.IngressServiceBackend) (stri
 		}
 	}
 	return "", intstr.IntOrString{}
-}
-
-// sysctlSomaxconn returns the maximum number of connections that can be queued
-// for acceptance (value of net.core.somaxconn)
-// http://nginx.org/en/docs/http/ngx_http_core_module.html#listen
-func sysctlSomaxconn() int {
-	maxConns, err := getSysctl("net/core/somaxconn")
-	if err != nil || maxConns < 512 {
-		klog.V(3).InfoS("Using default net.core.somaxconn", "value", maxConns)
-		return 511
-	}
-
-	return maxConns
-}
-
-// rlimitMaxNumFiles returns hard limit for RLIMIT_NOFILE
-func rlimitMaxNumFiles() int {
-	var rLimit syscall.Rlimit
-	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rLimit)
-	if err != nil {
-		klog.ErrorS(err, "Error reading system maximum number of open file descriptors (RLIMIT_NOFILE)")
-		return 0
-	}
-	return int(rLimit.Max)
-}
-
-const (
-	defBinary = "/usr/bin/nginx"
-	cfgPath   = "/etc/nginx/nginx.conf"
-)
-
-// NginxExecTester defines the interface to execute
-// command like reload or test configuration
-type NginxExecTester interface {
-	ExecCommand(args ...string) *exec.Cmd
-	Test(cfg string) ([]byte, error)
-}
-
-// NginxCommand stores context around a given nginx executable path
-type NginxCommand struct {
-	Binary string
-}
-
-// NewNginxCommand returns a new NginxCommand from which path
-// has been detected from environment variable NGINX_BINARY or default
-func NewNginxCommand() NginxCommand {
-	command := NginxCommand{
-		Binary: defBinary,
-	}
-
-	binary := os.Getenv("NGINX_BINARY")
-	if binary != "" {
-		command.Binary = binary
-	}
-
-	return command
-}
-
-// ExecCommand instanciates an exec.Cmd object to call nginx program
-func (nc NginxCommand) ExecCommand(args ...string) *exec.Cmd {
-	cmdArgs := []string{}
-
-	cmdArgs = append(cmdArgs, "-c", cfgPath)
-	cmdArgs = append(cmdArgs, args...)
-	return exec.Command(nc.Binary, cmdArgs...)
-}
-
-// Test checks if config file is a syntax valid nginx configuration
-func (nc NginxCommand) Test(cfg string) ([]byte, error) {
-	return exec.Command(nc.Binary, "-c", cfg, "-t").CombinedOutput()
-}
-
-// getSysctl returns the value for the specified sysctl setting
-func getSysctl(sysctl string) (int, error) {
-	data, err := os.ReadFile(path.Join("/proc/sys", sysctl))
-	if err != nil {
-		return -1, err
-	}
-
-	val, err := strconv.Atoi(strings.Trim(string(data), " \n"))
-	if err != nil {
-		return -1, err
-	}
-
-	return val, nil
 }

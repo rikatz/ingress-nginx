@@ -44,10 +44,9 @@ message BackendName {
 
 message EventMessage {
   BackendName backend = 1;
-  bytes podinfo = 2;
-  string eventtype = 3;
-  string reason = 4;
-  string message = 5;
+  string eventtype = 2;
+  string reason = 3;
+  string message = 4;
 }
 
 message EventReturn {

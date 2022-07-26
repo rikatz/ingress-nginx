@@ -152,13 +152,6 @@ func main() {
 	metrics.RegisterHealthz(nginx.HealthPath, mux, ngx)
 	metrics.RegisterMetrics(reg, mux)
 
-	_, errExists := os.Stat("/chroot")
-	if errExists == nil {
-		conf.IsChroot = true
-		go logger(conf.InternalLoggerAddress)
-
-	}
-
 	go metrics.StartHTTPServer(conf.HealthCheckHost, conf.ListenPorts.Health, mux)
 	go ngx.Start()
 

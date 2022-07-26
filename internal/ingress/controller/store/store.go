@@ -1070,6 +1070,7 @@ func (s *k8sStore) GetAuthCertificate(name string) (*resolver.AuthSSLCert, error
 	}, nil
 }
 
+// TODO: This should probably be part of backend
 func (s *k8sStore) writeSSLSessionTicketKey(cmap *corev1.ConfigMap, fileName string) {
 	ticketString := ngx_template.ReadConfig(cmap.Data).SSLSessionTicketKey
 	s.backendConfig.SSLSessionTicketKey = ""
@@ -1118,6 +1119,7 @@ func (s *k8sStore) setConfig(cmap *corev1.ConfigMap) {
 		return
 	}
 
+	// TODO: Check why is this in the store and if this can be still here but checking directly the configmap
 	s.backendConfig = ngx_template.ReadConfig(cmap.Data)
 	if s.backendConfig.UseGeoIP2 && !nginx.GeoLite2DBExists() {
 		klog.Warning("The GeoIP2 feature is enabled but the databases are missing. Disabling")

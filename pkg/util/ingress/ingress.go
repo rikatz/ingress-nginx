@@ -123,18 +123,18 @@ func IsDynamicConfigurationEnough(newcfg *ingress.Configuration, oldcfg *ingress
 	copyOfRunningConfig.Backends = []*ingress.Backend{}
 	copyOfPcfg.Backends = []*ingress.Backend{}
 
-	clearL4serviceEndpoints(&copyOfRunningConfig)
-	clearL4serviceEndpoints(&copyOfPcfg)
+	ClearL4serviceEndpoints(&copyOfRunningConfig)
+	ClearL4serviceEndpoints(&copyOfPcfg)
 
-	clearCertificates(&copyOfRunningConfig)
-	clearCertificates(&copyOfPcfg)
+	ClearCertificates(&copyOfRunningConfig)
+	ClearCertificates(&copyOfPcfg)
 
 	return copyOfRunningConfig.Equal(&copyOfPcfg)
 }
 
-// Helper function to clear endpoints from the ingress configuration since they should be ignored when
+// ClearL4serviceEndpoints is a helper function to clear endpoints from the ingress configuration since they should be ignored when
 // checking if the new configuration changes can be applied dynamically.
-func clearL4serviceEndpoints(config *ingress.Configuration) {
+func ClearL4serviceEndpoints(config *ingress.Configuration) {
 	var clearedTCPL4Services []ingress.L4Service
 	var clearedUDPL4Services []ingress.L4Service
 	for _, service := range config.TCPEndpoints {
@@ -159,9 +159,9 @@ func clearL4serviceEndpoints(config *ingress.Configuration) {
 	config.UDPEndpoints = clearedUDPL4Services
 }
 
-// Helper function to clear Certificates from the ingress configuration since they should be ignored when
+// ClearCertificates is a helper function to clear Certificates from the ingress configuration since they should be ignored when
 // checking if the new configuration changes can be applied dynamically if dynamic certificates is on
-func clearCertificates(config *ingress.Configuration) {
+func ClearCertificates(config *ingress.Configuration) {
 	var clearedServers []*ingress.Server
 	for _, server := range config.Servers {
 		copyOfServer := *server
