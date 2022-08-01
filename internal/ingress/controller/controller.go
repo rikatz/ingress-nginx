@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mitchellh/hashstructure"
 	apiv1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -41,6 +42,7 @@ import (
 	"k8s.io/ingress-nginx/internal/k8s"
 	"k8s.io/ingress-nginx/internal/nginx"
 	"k8s.io/ingress-nginx/pkg/apis/ingress"
+	utilingress "k8s.io/ingress-nginx/pkg/util/ingress"
 	"k8s.io/klog/v2"
 
 	"google.golang.org/grpc"
@@ -165,13 +167,39 @@ func (n *NGINXController) syncIngress(interface{}) error {
 
 	n.metricCollector.SetHosts(hosts)
 
+	n.newConfig = pcfg
+
+	if !utilingress.IsDynamicConfigurationEnough(pcfg, n.runningConfig) {
+
+		hash, _ := hashstructure.Hash(pcfg, &hashstructure.HashOptions{
+			TagName: "json",
+		})
+
+		n.newConfig.ConfigurationChecksum = fmt.Sprintf("%v", hash)
+
+		n.GRPCSubscribers.Lock.Lock()
+		for k, ch := range n.GRPCSubscribers.Clients {
+			klog.Warningf("Notifying client %s of full configuration", k)
+			ch <- FullConfiguration
+		}
+		n.GRPCSubscribers.Lock.Unlock()
+	}
+
+	n.GRPCSubscribers.Lock.Lock()
+	for k, ch := range n.GRPCSubscribers.Clients {
+		klog.V(3).Infof("Notifying client %s of dynamic configuration", k)
+		// TODO: Something is wrong here and full config is being sent
+		ch <- DynamicConfiguration
+	}
+	n.GRPCSubscribers.Lock.Unlock()
+
+	n.runningConfig = pcfg
+
 	// TODO: Should this metric be in CP or DP?
 	ri := getRemovedIngresses(n.runningConfig, pcfg)
 	re := getRemovedHosts(n.runningConfig, pcfg)
 	rc := getRemovedCertificateSerialNumbers(n.runningConfig, pcfg)
 	n.metricCollector.RemoveMetrics(ri, re, rc)
-
-	n.runningConfig = pcfg // TODO: This will trigger the config sending, improve this logic
 
 	return nil
 }

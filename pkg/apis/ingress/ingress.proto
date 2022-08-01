@@ -55,6 +55,38 @@ message EventReturn {
 
 // The response message containing the greetings
 message Configurations {
-  // TODO: This should be of type any, probably!
-  bytes configuration = 1;
+  // FullConfiguration messages are used for actions that triggers full resync
+  message FullConfiguration {
+    bytes configuration = 1;
+  }
+
+  // DynamicConfiguration actions are used only for endpoints/certificates changes
+  message DynamicConfiguration {
+    bytes configuration = 1;
+  }
+
+
+  // BackendConfiguration is used when the Ingress ConfigMap is changed
+  message BackendConfiguration {
+    bytes configuration = 1;
+  }
+
+  // StreamConfiguration are the TCP and UDP streams (non L7)
+  message StreamConfiguration {
+    bytes configuration = 1;
+  }
+
+
+  // TODO: Watch extra configmaps? Or add those aas a Get for templates. Or populate via store sync
+  // TODO2: Certiificates should have a different service?
+
+
+  oneof op{
+    FullConfiguration fullconfig_op=2;
+    DynamicConfiguration dynamicconfig_op=3;
+    BackendConfiguration backendconfig_op=4;
+    StreamConfiguration streamconfig_op=5;
+
+  }
+
 }

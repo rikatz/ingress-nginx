@@ -18,12 +18,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"math/rand"
 	"strings"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	v1 "k8s.io/api/core/v1"
@@ -52,6 +54,10 @@ func main() {
 	if len(nsname) != 2 {
 		klog.Fatal("clientname should be in format namespace/name")
 	}
+	clientnameVal := ingress.BackendName{
+		Namespace: nsname[0],
+		Name:      nsname[1],
+	}
 	conn, err := grpc.Dial(grpcaddress, grpc.WithTransportCredentials(insecure.NewCredentials())) // TODO: Receive secure options
 	if err != nil {
 		klog.Fatalf("fail to dial: %v", err)
@@ -60,15 +66,78 @@ func main() {
 
 	switch service {
 	case "eventservice":
-		runEventServiceTest(conn, nsname)
+		runEventServiceTest(conn, &clientnameVal)
 	case "configurationservice":
+		runWatchConfig(conn, &clientnameVal)
+	case "gconfigurationservice":
+		runGetConfig(conn, &clientnameVal)
 	default:
 		klog.Fatalf("invalid service, should be 'eventservice' or 'configurationservice'")
 	}
 
 }
 
-func runEventServiceTest(conn *grpc.ClientConn, clientname []string) {
+func runGetConfig(conn *grpc.ClientConn, clientname *ingress.BackendName) {
+	client := ingress.NewConfigurationClient(conn)
+	ctx := context.Background()
+	cfg, err := client.GetConfigurations(ctx, clientname)
+	if err != nil {
+		klog.Fatalf("error getting config: %s", err)
+	}
+
+	switch op := cfg.Op.(type) {
+	case *ingress.Configurations_FullconfigOp:
+		var config ingress.Configuration
+		if err := json.Unmarshal(op.FullconfigOp.Configuration, &config); err != nil {
+			klog.Fatalf("error unmarshalling config: %s", err)
+		}
+		spew.Dump(config)
+	default:
+		klog.Warningf("Operation not implemented: %+v", op)
+	}
+
+}
+
+func runWatchConfig(conn *grpc.ClientConn, clientname *ingress.BackendName) {
+	client := ingress.NewConfigurationClient(conn)
+	ctx := context.Background()
+	stream, err := client.WatchConfigurations(ctx, clientname)
+	if err != nil {
+		klog.Fatalf("error opening stream: %s", err)
+	}
+	for {
+
+		cfg, err := stream.Recv()
+
+		if err != nil {
+			klog.Fatalf("%v.WatchConfiguration = _, %v", client, err)
+		}
+		switch op := cfg.Op.(type) {
+		case *ingress.Configurations_FullconfigOp:
+			var config ingress.Configuration
+			if err := json.Unmarshal(op.FullconfigOp.Configuration, &config); err != nil {
+				klog.Fatalf("error unmarshalling config: %s", err)
+			}
+			spew.Dump(config)
+		case *ingress.Configurations_DynamicconfigOp:
+			var config []ingress.Backend
+			if err := json.Unmarshal(op.DynamicconfigOp.Configuration, &config); err != nil {
+				klog.Fatalf("error unmarshalling config: %s", err)
+			}
+			spew.Dump(config)
+		case *ingress.Configurations_StreamconfigOp:
+			var config []ingress.Backend
+			if err := json.Unmarshal(op.StreamconfigOp.Configuration, &config); err != nil {
+				klog.Fatalf("error unmarshalling config: %s", err)
+			}
+			spew.Dump(config)
+		default:
+			klog.Warningf("Operation not implemented: %+v", op)
+		}
+	}
+}
+
+func runEventServiceTest(conn *grpc.ClientConn, clientname *ingress.BackendName) {
 	client := ingress.NewEventServiceClient(conn)
 
 	ctx := context.TODO()
@@ -98,10 +167,7 @@ func runEventServiceTest(conn *grpc.ClientConn, clientname []string) {
 		}
 
 		message := &ingress.EventMessage{
-			Backend: &ingress.BackendName{
-				Namespace: clientname[0],
-				Name:      clientname[1],
-			},
+			Backend:   clientname,
 			Eventtype: eventtype,
 			Reason:    reason,
 			Message:   msg,

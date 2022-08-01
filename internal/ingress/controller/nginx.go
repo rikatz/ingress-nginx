@@ -44,8 +44,6 @@ import (
 	"k8s.io/ingress-nginx/internal/task"
 	"k8s.io/ingress-nginx/pkg/apis/ingress"
 
-	"k8s.io/ingress-nginx/internal/grpcserver"
-
 	"google.golang.org/grpc"
 
 	klog "k8s.io/klog/v2"
@@ -56,7 +54,10 @@ const (
 	emptyUID         = "-1"
 )
 
-// TODO: move somewhere else
+type Subscribers struct {
+	Lock    sync.RWMutex
+	Clients map[string]chan int
+}
 
 // NewNGINXController creates a new NGINX Ingress controller.
 func NewNGINXController(config *Configuration, mc metric.Collector) *NGINXController {
@@ -90,10 +91,15 @@ func NewNGINXController(config *Configuration, mc metric.Collector) *NGINXContro
 		stopLock: &sync.Mutex{},
 
 		runningConfig: new(ingress.Configuration),
+		newConfig:     new(ingress.Configuration),
 
 		Proxy: &tcpproxy.TCPProxy{},
 
 		metricCollector: mc,
+		GRPCSubscribers: Subscribers{
+			Lock:    sync.RWMutex{},
+			Clients: make(map[string]chan int),
+		},
 	}
 
 	if n.cfg.ValidationWebhook != "" {
@@ -169,11 +175,16 @@ type NGINXController struct {
 	stopCh   chan struct{}
 	updateCh *channels.RingChannel
 
+	GRPCSubscribers Subscribers
+
 	// ngxErrCh is used to detect errors with the NGINX processes
 	ngxErrCh chan error
 
 	// runningConfig contains the running configuration in the Backend
 	runningConfig *ingress.Configuration
+
+	// newConfig contains the new Configuration to be applied, and will be used to compare structs for dynamic config
+	newConfig *ingress.Configuration
 
 	resolver []net.IP
 
@@ -239,8 +250,10 @@ func (n *NGINXController) Start() {
 
 	if n.gRPCServer != nil {
 		klog.InfoS("Starting grpc server", "port", n.cfg.GRPCPort)
-		ingress.RegisterEventServiceServer(n.gRPCServer, &grpcserver.EventServer{Recorder: n.recorder})
-		ingress.RegisterConfigurationServer(n.gRPCServer, &grpcserver.ConfigurationServer{})
+		ingress.RegisterEventServiceServer(n.gRPCServer, &EventServer{Recorder: n.recorder})
+		ingress.RegisterConfigurationServer(n.gRPCServer, &ConfigurationServer{
+			n: n,
+		})
 
 		lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", n.cfg.GRPCPort))
 		if err != nil {
@@ -300,6 +313,7 @@ func (n *NGINXController) Stop() error {
 
 	time.Sleep(time.Duration(n.cfg.ShutdownGracePeriod) * time.Second)
 
+	klog.InfoS("closing gRPC Configuration channel")
 	klog.InfoS("Shutting down controller queues")
 	close(n.stopCh)
 	go n.syncQueue.Shutdown()

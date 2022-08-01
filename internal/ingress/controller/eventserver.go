@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package grpcserver
+package controller
 
 import (
 	"io"
@@ -30,6 +30,7 @@ import (
 type EventServer struct {
 	ingress.UnimplementedEventServiceServer
 	Recorder record.EventRecorder
+	// TODO: Add the Kubernetes Client to verify if it came from a valid backend
 }
 
 func (s *EventServer) PublishEvent(stream ingress.EventService_PublishEventServer) error {

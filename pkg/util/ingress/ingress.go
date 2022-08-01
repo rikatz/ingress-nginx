@@ -132,6 +132,18 @@ func IsDynamicConfigurationEnough(newcfg *ingress.Configuration, oldcfg *ingress
 	return copyOfRunningConfig.Equal(&copyOfPcfg)
 }
 
+// EndpointOnlyConfiguration returns whether a Configuration can be
+// dynamically applied, without reloading the backend.
+// TODO: Can we optimize this and return all in one instead of keep repeating this function?
+func EndpointOnlyConfiguration(oldcfg *ingress.Configuration) *ingress.Configuration {
+	copyOfRunningConfig := *oldcfg
+
+	ClearL4serviceEndpoints(&copyOfRunningConfig)
+	ClearCertificates(&copyOfRunningConfig)
+
+	return &copyOfRunningConfig
+}
+
 // ClearL4serviceEndpoints is a helper function to clear endpoints from the ingress configuration since they should be ignored when
 // checking if the new configuration changes can be applied dynamically.
 func ClearL4serviceEndpoints(config *ingress.Configuration) {
