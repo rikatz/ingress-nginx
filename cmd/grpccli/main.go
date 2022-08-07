@@ -29,6 +29,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	v1 "k8s.io/api/core/v1"
+	configingress "k8s.io/ingress-nginx/internal/ingress/controller/config"
 	"k8s.io/ingress-nginx/pkg/apis/ingress"
 	"k8s.io/klog/v2"
 )
@@ -40,12 +41,14 @@ This program is created to test the communication between controlplane and datap
 var (
 	grpcaddress string
 	service     string
+	configtype  string
 	clientname  string
 )
 
 func main() {
 	flag.StringVar(&grpcaddress, "grpc-address", "127.0.0.1:10000", "defines the grpc server to consume, in format of address:port")
-	flag.StringVar(&service, "service", "endpoint", "defines the service to be tested")
+	flag.StringVar(&service, "service", "configurationservice", "defines the service to be tested")
+	flag.StringVar(&configtype, "configtype", "backend", "defines the configuration to get on configmap: [backend, proxyset, addheaders]")
 	flag.StringVar(&clientname, "clientname", "ingress/pod1", "defines the name/id of the consumer, should be namespace/name")
 	flag.Parse()
 
@@ -71,8 +74,47 @@ func main() {
 		runWatchConfig(conn, &clientnameVal)
 	case "gconfigurationservice":
 		runGetConfig(conn, &clientnameVal)
+	case "getconfigmap":
+		runGetConfigmap(conn, &clientnameVal, configtype)
 	default:
 		klog.Fatalf("invalid service, should be 'eventservice' or 'configurationservice'")
+	}
+
+}
+
+func runGetConfigmap(conn *grpc.ClientConn, clientname *ingress.BackendName, configtype string) {
+	client := ingress.NewConfigurationClient(conn)
+	ctx := context.Background()
+
+	switch configtype {
+	case "backend":
+		cfg, err := client.GetBackendConfiguration(ctx, clientname)
+		if err != nil {
+			klog.Fatalf("error getting config: %s", err)
+		}
+		var config configingress.Configuration
+		if err := json.Unmarshal(cfg.Configuration, &config); err != nil {
+			klog.Fatalf("error unmarshalling config: %s", err)
+		}
+		spew.Dump(config)
+
+	default:
+		cfg, err := client.GetConfigmap(ctx, &ingress.ConfigType{
+			Backend:       clientname,
+			Configtype:    configtype,
+			Configmapname: "",
+		})
+		if err != nil {
+			klog.Fatalf("error getting config: %s", err)
+		}
+
+		var config v1.ConfigMap
+
+		if err := json.Unmarshal(cfg.Configuration, &config); err != nil {
+			klog.Fatalf("error unmarshalling config: %s", err)
+		}
+		spew.Dump(config)
+
 	}
 
 }
@@ -80,7 +122,10 @@ func main() {
 func runGetConfig(conn *grpc.ClientConn, clientname *ingress.BackendName) {
 	client := ingress.NewConfigurationClient(conn)
 	ctx := context.Background()
-	cfg, err := client.GetConfigurations(ctx, clientname)
+	var cfg *ingress.Configurations
+	var err error
+
+	cfg, err = client.GetConfigurations(ctx, clientname)
 	if err != nil {
 		klog.Fatalf("error getting config: %s", err)
 	}
@@ -92,8 +137,9 @@ func runGetConfig(conn *grpc.ClientConn, clientname *ingress.BackendName) {
 			klog.Fatalf("error unmarshalling config: %s", err)
 		}
 		spew.Dump(config)
+
 	default:
-		klog.Warningf("Operation not implemented: %+v", op)
+		klog.Fatalf("Operation not implemented: %+v", op)
 	}
 
 }

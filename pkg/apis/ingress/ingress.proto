@@ -26,6 +26,13 @@ service Configuration {
   rpc WatchConfigurations (BackendName) returns (stream Configurations) {}
   // GetConfigurations will be used for initial sync and periodic syncs
   rpc GetConfigurations(BackendName) returns (Configurations) {}
+
+  // GetConfigmap gets a configmap defined by an operation like "Backend", "AddHeaders", etc.
+  // The service handler should never take a configmap name, but instead return the related configmap
+  // of the operation
+  rpc GetConfigmap(ConfigType) returns (ConfigMapResponse) {}
+
+  rpc GetBackendConfiguration(BackendName) returns (BackendConfiguration) {}
 }
 
 // EventService is responsible for receiving events from Backends and turning into k8s events
@@ -65,7 +72,6 @@ message Configurations {
     bytes configuration = 1;
   }
 
-
   // BackendConfiguration is used when the Ingress ConfigMap is changed
   message BackendConfiguration {
     bytes configuration = 1;
@@ -76,17 +82,25 @@ message Configurations {
     bytes configuration = 1;
   }
 
-
-  // TODO: Watch extra configmaps? Or add those aas a Get for templates. Or populate via store sync
-  // TODO2: Certiificates should have a different service?
-
-
   oneof op{
     FullConfiguration fullconfig_op=2;
     DynamicConfiguration dynamicconfig_op=3;
-    BackendConfiguration backendconfig_op=4;
-    StreamConfiguration streamconfig_op=5;
-
+    StreamConfiguration streamconfig_op=4;
   }
+}
 
+message BackendConfiguration {
+  // TODO: Backend Configuration has specific format and can be fully turned into protobuf
+  bytes configuration = 1;
+}
+
+message ConfigType {
+  BackendName backend = 1;
+  string configtype = 2;
+  string configmapname = 3;
+}
+
+
+message ConfigMapResponse {
+    bytes configuration = 1;
 }

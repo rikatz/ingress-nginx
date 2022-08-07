@@ -183,15 +183,14 @@ func (n *NGINXController) syncIngress(interface{}) error {
 			ch <- FullConfiguration
 		}
 		n.GRPCSubscribers.Lock.Unlock()
+	} else {
+		n.GRPCSubscribers.Lock.Lock()
+		for k, ch := range n.GRPCSubscribers.Clients {
+			klog.V(3).Infof("Notifying client %s of dynamic configuration", k)
+			ch <- DynamicConfiguration
+		}
+		n.GRPCSubscribers.Lock.Unlock()
 	}
-
-	n.GRPCSubscribers.Lock.Lock()
-	for k, ch := range n.GRPCSubscribers.Clients {
-		klog.V(3).Infof("Notifying client %s of dynamic configuration", k)
-		// TODO: Something is wrong here and full config is being sent
-		ch <- DynamicConfiguration
-	}
-	n.GRPCSubscribers.Lock.Unlock()
 
 	n.runningConfig = pcfg
 
@@ -1478,7 +1477,7 @@ func extractTLSSecretName(host string, ing *ingress.Ingress,
 // that are not associated anymore to the NGINX configuration.
 func getRemovedHosts(rucfg, newcfg *ingress.Configuration) []string {
 	old := sets.NewString()
-	new := sets.NewString()
+	newset := sets.NewString()
 
 	for _, s := range rucfg.Servers {
 		if !old.Has(s.Hostname) {
@@ -1487,12 +1486,12 @@ func getRemovedHosts(rucfg, newcfg *ingress.Configuration) []string {
 	}
 
 	for _, s := range newcfg.Servers {
-		if !new.Has(s.Hostname) {
-			new.Insert(s.Hostname)
+		if !newset.Has(s.Hostname) {
+			newset.Insert(s.Hostname)
 		}
 	}
 
-	return old.Difference(new).List()
+	return old.Difference(newset).List()
 }
 
 func getRemovedCertificateSerialNumbers(rucfg, newcfg *ingress.Configuration) []string {

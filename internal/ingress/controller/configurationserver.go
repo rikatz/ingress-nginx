@@ -1,3 +1,19 @@
+/*
+Copyright 2022 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package controller
 
 import (
@@ -17,8 +33,6 @@ const (
 	FullConfiguration = iota
 	// DynamicConfiguration should return only if endpoints changes
 	DynamicConfiguration
-	// BackendConfiguration returns only the Ingress Configmap configuration
-	BackendCConfiguration
 )
 
 // This file should be in the same directory as controller otherwise we will end up with cyclic imports
@@ -32,14 +46,10 @@ type ConfigurationServer struct {
 
 func (s *ConfigurationServer) GetConfigurations(ctx context.Context, backend *ingress.BackendName) (*ingress.Configurations, error) {
 
-	if s.n == nil {
-		klog.ErrorS(fmt.Errorf("no config available"), "error generating grpc answer")
-		return nil, fmt.Errorf("no configuration is available yet")
+	if err := s.checkNilConfiguration(); err != nil {
+		return nil, err
 	}
-	if s.n.runningConfig == nil {
-		klog.ErrorS(fmt.Errorf("no config available"), "error generating grpc answer")
-		return nil, fmt.Errorf("no configuration is available yet")
-	}
+
 	payload, err := json.Marshal(s.n.runningConfig)
 	if err != nil {
 		klog.ErrorS(err, "error marshalling config json")
@@ -50,8 +60,74 @@ func (s *ConfigurationServer) GetConfigurations(ctx context.Context, backend *in
 	return &ingress.Configurations{Op: &op}, nil
 }
 
+// GetBackendConfiguration receives a GET request and returns the Ingress Configuration that is persisted in its configmap
+func (s *ConfigurationServer) GetBackendConfiguration(ctx context.Context, backend *ingress.BackendName) (*ingress.BackendConfiguration, error) {
+	if err := s.checkNilConfiguration(); err != nil {
+		return nil, err
+	}
+	cfgmap := s.n.store.GetBackendConfiguration()
+	payload, err := json.Marshal(cfgmap)
+	if err != nil {
+		klog.ErrorS(err, "error marshalling backend config json")
+		return nil, fmt.Errorf("failed marshalling config json: %w", err)
+	}
+	return &ingress.BackendConfiguration{Configuration: payload}, nil
+
+}
+
+// GetConfigmap is the service used to get configmaps containing specific configurations for ingress like addheaders, proxysetheaders and others
+func (s *ConfigurationServer) GetConfigmap(ctx context.Context, backend *ingress.ConfigType) (*ingress.ConfigMapResponse, error) {
+
+	if err := s.checkNilConfiguration(); err != nil {
+		return nil, err
+	}
+
+	cfgmap := s.n.store.GetBackendConfiguration()
+
+	var cm *ingress.ConfigMapResponse
+	switch backend.Configtype {
+
+	case ingress.ProxySetHeadersOperation:
+		if cfgmap.ProxySetHeaders == "" {
+			return nil, fmt.Errorf("no configmap for proxysetheaders is set on server side")
+		}
+		proxyset, err := s.n.store.GetConfigMap(cfgmap.ProxySetHeaders)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get proxysetheader configmap: %w", err)
+		}
+		payload, err := json.Marshal(proxyset)
+		if err != nil {
+			klog.ErrorS(err, "error marshalling backend config json")
+			return nil, fmt.Errorf("failed marshalling config json: %w", err)
+		}
+		cm = &ingress.ConfigMapResponse{Configuration: payload}
+
+	case ingress.AddHeadersOperation:
+		if cfgmap.AddHeaders == "" {
+			return nil, fmt.Errorf("no configmap for addheaders is set on server side")
+		}
+		addheaders, err := s.n.store.GetConfigMap(cfgmap.AddHeaders)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get proxysetheader configmap: %w", err)
+		}
+		payload, err := json.Marshal(addheaders)
+		if err != nil {
+			klog.ErrorS(err, "error marshalling backend config json")
+			return nil, fmt.Errorf("failed marshalling config json: %w", err)
+		}
+		cm = &ingress.ConfigMapResponse{Configuration: payload}
+	default:
+		return nil, fmt.Errorf("Configmap type not implemented")
+	}
+
+	return cm, nil
+}
+
 func (s *ConfigurationServer) WatchConfigurations(backend *ingress.BackendName, stream ingress.Configuration_WatchConfigurationsServer) error {
 
+	if err := s.checkNilConfiguration(); err != nil {
+		return err
+	}
 	backendName := fmt.Sprintf("%s/%s", backend.Namespace, backend.Name)
 
 	// TODO: Validate backend name to avoid colisions in map
@@ -65,15 +141,6 @@ func (s *ConfigurationServer) WatchConfigurations(backend *ingress.BackendName, 
 		delete(s.n.GRPCSubscribers.Clients, backendName)
 		s.n.GRPCSubscribers.Lock.Unlock()
 	}()
-
-	if s.n == nil {
-		klog.ErrorS(fmt.Errorf("no config available"), "error generating grpc answer")
-		return fmt.Errorf("no configuration is available yet")
-	}
-	if s.n.newConfig == nil {
-		klog.ErrorS(fmt.Errorf("no config available"), "error generating grpc answer")
-		return fmt.Errorf("no configuration is available yet")
-	}
 
 	for {
 		syncType := <-s.n.GRPCSubscribers.Clients[backendName]
@@ -95,8 +162,6 @@ func (s *ConfigurationServer) WatchConfigurations(backend *ingress.BackendName, 
 
 		case DynamicConfiguration:
 			err = s.sendDynamicConfig(stream)
-		case BackendCConfiguration:
-			klog.Errorf("not implemented!") // TODO: Implement
 
 		default:
 			klog.ErrorS(fmt.Errorf("invalid operation"), "error getting dynamic configuration")
@@ -109,7 +174,7 @@ func (s *ConfigurationServer) WatchConfigurations(backend *ingress.BackendName, 
 	}
 }
 
-// configureDynamically encodes new Backends in JSON format and POSTs the
+// sendDynamicConfig encodes new Backends in JSON format and POSTs the
 // payload to an internal HTTP endpoint handled by Lua.
 func (s *ConfigurationServer) sendDynamicConfig(stream ingress.Configuration_WatchConfigurationsServer) error {
 	// TODO: Maybe all this reflection can be run once in caller function (before sending to channels) and we just create
@@ -142,7 +207,7 @@ func (s *ConfigurationServer) sendDynamicConfig(stream ingress.Configuration_Wat
 
 	serversChanged := !reflect.DeepEqual(s.n.runningConfig.Servers, s.n.newConfig.Servers)
 	if serversChanged {
-		// SEND just the serts
+		// SEND just the certs
 		/*err := configureCertificates(pcfg.Servers)
 		if err != nil {
 			return err
@@ -184,4 +249,16 @@ func generateStreamBackend(TCPEndpoints []ingress.L4Service, UDPEndpoints []ingr
 	}
 	return streams
 
+}
+
+func (s *ConfigurationServer) checkNilConfiguration() error {
+	if s.n == nil {
+		klog.ErrorS(fmt.Errorf("no config available"), "error generating grpc answer")
+		return fmt.Errorf("no configuration is available yet")
+	}
+	if s.n.newConfig == nil {
+		klog.ErrorS(fmt.Errorf("no config available"), "error generating grpc answer")
+		return fmt.Errorf("no configuration is available yet")
+	}
+	return nil
 }

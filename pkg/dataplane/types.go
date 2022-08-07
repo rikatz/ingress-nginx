@@ -29,6 +29,7 @@ import (
 	"k8s.io/ingress-nginx/internal/ingress/metric/collectors"
 	"k8s.io/ingress-nginx/internal/task"
 	"k8s.io/ingress-nginx/pkg/apis/ingress"
+	"k8s.io/ingress-nginx/pkg/dataplane/grpcclient"
 	"k8s.io/ingress-nginx/pkg/tcpproxy"
 )
 
@@ -103,6 +104,8 @@ type NGINXConfigurer struct {
 	Proxy *tcpproxy.TCPProxy
 
 	metricCollector metric.Collector
+
+	GRPCClient *grpcclient.Client
 
 	command NginxExecTester
 }

@@ -45,6 +45,11 @@ import (
 // TODO: The API shouldn't be importing structs from annotation code. Instead we probably want a conversion from internal
 // to API object, or see how much effort is to move the structs of annotations to become an "API'ish" as well
 
+const (
+	ProxySetHeadersOperation = "proxyset"
+	AddHeadersOperation      = "addheaders"
+)
+
 // Configuration holds the definition of all the parts required to describe all
 // ingresses reachable by the ingress controller (using a filter by namespace)
 type Configuration struct {

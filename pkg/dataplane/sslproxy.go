@@ -27,8 +27,10 @@ import (
 )
 
 func (n *NGINXConfigurer) setupSSLProxy() {
-	// TODO: Get the Configuration below via gRPC: do a GetConfiguration that returns the running ConfigMap from Control Plane
-	cfg := n.GetBackendConfiguration()
+	cfg, err := n.GetBackendConfiguration()
+	if err != nil {
+		klog.Fatalf("error configuring SSL Proxy: %w", err)
+	}
 	sslPort := n.cfg.ListenPorts.HTTPS
 	proxyPort := n.cfg.ListenPorts.SSLProxy
 

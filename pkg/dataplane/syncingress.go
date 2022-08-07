@@ -25,8 +25,10 @@ import (
 	"time"
 
 	"github.com/mitchellh/hashstructure"
+	apiv1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/ingress-nginx/internal/ingress/controller/config"
+	"k8s.io/ingress-nginx/internal/k8s"
 	"k8s.io/ingress-nginx/pkg/apis/ingress"
 	"k8s.io/ingress-nginx/pkg/util/file"
 	utilingress "k8s.io/ingress-nginx/pkg/util/ingress"
@@ -63,8 +65,17 @@ func (n *NGINXConfigurer) syncIngress(pcfg *ingress.Configuration) error {
 			n.metricCollector.IncReloadErrorCount()
 			n.metricCollector.ConfigSuccess(hash, false)
 			klog.Errorf("Unexpected failure reloading the backend:\n%v", err)
-			// TODO: Below should be another gRPC call to let controller know there was an error
-			// n.recorder.Eventf(k8s.IngressPodDetails, apiv1.EventTypeWarning, "RELOAD", fmt.Sprintf("Error reloading NGINX: %v", err))
+			msg := ingress.EventMessage{
+				// TODO: This is duplicate with Config / NewGRPC Client
+				Backend: &ingress.BackendName{
+					Name:      k8s.IngressPodDetails.Name,
+					Namespace: k8s.IngressPodDetails.Namespace,
+				},
+				Eventtype: apiv1.EventTypeWarning,
+				Reason:    "RELOAD",
+				Message:   fmt.Sprintf("Error reloading NGINX: %v", err),
+			}
+			n.GRPCClient.EventCh <- msg
 			return err
 		}
 
@@ -72,7 +83,18 @@ func (n *NGINXConfigurer) syncIngress(pcfg *ingress.Configuration) error {
 		n.metricCollector.ConfigSuccess(hash, true)
 		n.metricCollector.IncReloadCount()
 		// TODO: Below should be another gRPC call to let controller know there was an error
-		//n.recorder.Eventf(k8s.IngressPodDetails, apiv1.EventTypeNormal, "RELOAD", "NGINX reload triggered due to a change in configuration")
+		msg := ingress.EventMessage{
+			// TODO: This is duplicate with Config / NewGRPC Client
+			Backend: &ingress.BackendName{
+				Name:      k8s.IngressPodDetails.Name,
+				Namespace: k8s.IngressPodDetails.Namespace,
+			},
+			Eventtype: apiv1.EventTypeNormal,
+			Reason:    "RELOAD",
+			Message:   "NGINX reload triggered due to a change in configuration",
+		}
+		n.GRPCClient.EventCh <- msg
+
 	}
 
 	isFirstSync := n.runningConfig.Equal(&ingress.Configuration{})
@@ -125,7 +147,10 @@ func (n *NGINXConfigurer) syncIngress(pcfg *ingress.Configuration) error {
 // configuration ConfigMap before generating the final configuration file.
 // Returns nil in case the backend was successfully reloaded.
 func (n *NGINXConfigurer) OnUpdate(ingressCfg ingress.Configuration) error {
-	cfg := n.GetBackendConfiguration()
+	cfg, err := n.GetBackendConfiguration()
+	if err != nil {
+		return fmt.Errorf("error getting configuration: %w", err)
+	}
 	cfg.Resolver = n.resolver
 
 	content, err := n.generateTemplate(cfg, ingressCfg)
@@ -188,6 +213,6 @@ func (n *NGINXConfigurer) OnUpdate(ingressCfg ingress.Configuration) error {
 }
 
 // TODO: Implement, get this via gRPC from control plane
-func (n *NGINXConfigurer) GetBackendConfiguration() config.Configuration {
-	return config.Configuration{}
+func (n *NGINXConfigurer) GetBackendConfiguration() (config.Configuration, error) {
+	return n.GRPCClient.GetConfigBackend()
 }

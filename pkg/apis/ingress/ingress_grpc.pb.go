@@ -24,6 +24,11 @@ type ConfigurationClient interface {
 	WatchConfigurations(ctx context.Context, in *BackendName, opts ...grpc.CallOption) (Configuration_WatchConfigurationsClient, error)
 	// GetConfigurations will be used for initial sync and periodic syncs
 	GetConfigurations(ctx context.Context, in *BackendName, opts ...grpc.CallOption) (*Configurations, error)
+	// GetConfigmap gets a configmap defined by an operation like "Backend", "AddHeaders", etc.
+	// The service handler should never take a configmap name, but instead return the related configmap
+	// of the operation
+	GetConfigmap(ctx context.Context, in *ConfigType, opts ...grpc.CallOption) (*ConfigMapResponse, error)
+	GetBackendConfiguration(ctx context.Context, in *BackendName, opts ...grpc.CallOption) (*BackendConfiguration, error)
 }
 
 type configurationClient struct {
@@ -75,6 +80,24 @@ func (c *configurationClient) GetConfigurations(ctx context.Context, in *Backend
 	return out, nil
 }
 
+func (c *configurationClient) GetConfigmap(ctx context.Context, in *ConfigType, opts ...grpc.CallOption) (*ConfigMapResponse, error) {
+	out := new(ConfigMapResponse)
+	err := c.cc.Invoke(ctx, "/ingressv1.Configuration/GetConfigmap", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *configurationClient) GetBackendConfiguration(ctx context.Context, in *BackendName, opts ...grpc.CallOption) (*BackendConfiguration, error) {
+	out := new(BackendConfiguration)
+	err := c.cc.Invoke(ctx, "/ingressv1.Configuration/GetBackendConfiguration", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ConfigurationServer is the server API for Configuration service.
 // All implementations must embed UnimplementedConfigurationServer
 // for forward compatibility
@@ -85,6 +108,11 @@ type ConfigurationServer interface {
 	WatchConfigurations(*BackendName, Configuration_WatchConfigurationsServer) error
 	// GetConfigurations will be used for initial sync and periodic syncs
 	GetConfigurations(context.Context, *BackendName) (*Configurations, error)
+	// GetConfigmap gets a configmap defined by an operation like "Backend", "AddHeaders", etc.
+	// The service handler should never take a configmap name, but instead return the related configmap
+	// of the operation
+	GetConfigmap(context.Context, *ConfigType) (*ConfigMapResponse, error)
+	GetBackendConfiguration(context.Context, *BackendName) (*BackendConfiguration, error)
 	mustEmbedUnimplementedConfigurationServer()
 }
 
@@ -97,6 +125,12 @@ func (UnimplementedConfigurationServer) WatchConfigurations(*BackendName, Config
 }
 func (UnimplementedConfigurationServer) GetConfigurations(context.Context, *BackendName) (*Configurations, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetConfigurations not implemented")
+}
+func (UnimplementedConfigurationServer) GetConfigmap(context.Context, *ConfigType) (*ConfigMapResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetConfigmap not implemented")
+}
+func (UnimplementedConfigurationServer) GetBackendConfiguration(context.Context, *BackendName) (*BackendConfiguration, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetBackendConfiguration not implemented")
 }
 func (UnimplementedConfigurationServer) mustEmbedUnimplementedConfigurationServer() {}
 
@@ -150,6 +184,42 @@ func _Configuration_GetConfigurations_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Configuration_GetConfigmap_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConfigType)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConfigurationServer).GetConfigmap(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/ingressv1.Configuration/GetConfigmap",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConfigurationServer).GetConfigmap(ctx, req.(*ConfigType))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Configuration_GetBackendConfiguration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BackendName)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConfigurationServer).GetBackendConfiguration(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/ingressv1.Configuration/GetBackendConfiguration",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConfigurationServer).GetBackendConfiguration(ctx, req.(*BackendName))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Configuration_ServiceDesc is the grpc.ServiceDesc for Configuration service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -160,6 +230,14 @@ var Configuration_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetConfigurations",
 			Handler:    _Configuration_GetConfigurations_Handler,
+		},
+		{
+			MethodName: "GetConfigmap",
+			Handler:    _Configuration_GetConfigmap_Handler,
+		},
+		{
+			MethodName: "GetBackendConfiguration",
+			Handler:    _Configuration_GetBackendConfiguration_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

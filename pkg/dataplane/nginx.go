@@ -35,6 +35,7 @@ import (
 	"k8s.io/ingress-nginx/internal/nginx"
 	"k8s.io/ingress-nginx/internal/task"
 	"k8s.io/ingress-nginx/pkg/apis/ingress"
+	"k8s.io/ingress-nginx/pkg/dataplane/grpcclient"
 	"k8s.io/ingress-nginx/pkg/tcpproxy"
 	"k8s.io/ingress-nginx/pkg/util/file"
 	"k8s.io/klog/v2"
@@ -48,13 +49,25 @@ func NewNGINXConfigurer(config *Configuration, mc metric.Collector) *NGINXConfig
 		klog.Warningf("Error reading system nameservers: %v", err)
 	}
 
+	errCh := make(chan error)
+	grpcconf := grpcclient.Config{
+		Address: "127.0.0.1:10000",
+		Backendname: &ingress.BackendName{
+			Name:      "test",
+			Namespace: "testns",
+		},
+		Keepalive: false,
+		ErrorCh:   errCh,
+	}
+	grpccl, err := grpcclient.NewGRPCClient(grpcconf)
+
 	n := &NGINXConfigurer{
 		isIPV6Enabled:   ing_net.IsIPv6Enabled(),
 		resolver:        h,
 		cfg:             config,
 		syncRateLimiter: flowcontrol.NewTokenBucketRateLimiter(config.SyncRateLimit, 1),
 		stopCh:          make(chan struct{}),
-		ngxErrCh:        make(chan error),
+		ngxErrCh:        errCh,
 		configureLock:   &sync.Mutex{},
 		stopLock:        &sync.Mutex{},
 		// TOOD: Right now we will receive the full configuration, but we may want to receive and validate just checksums
@@ -63,7 +76,8 @@ func NewNGINXConfigurer(config *Configuration, mc metric.Collector) *NGINXConfig
 
 		metricCollector: mc,
 
-		command: NewNginxCommand(),
+		GRPCClient: grpccl,
+		command:    NewNginxCommand(),
 	}
 
 	// TODO: Change to trigger the full reconciliation
