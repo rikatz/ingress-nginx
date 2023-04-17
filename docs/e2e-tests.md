@@ -53,7 +53,6 @@ Do not try to edit it manually.
 - [should set backend protocol to $scheme:// and use proxy_pass](https://github.com/kubernetes/ingress-nginx/tree/main/test/e2e/annotations/backendprotocol.go#L49)
 - [should set backend protocol to grpc:// and use grpc_pass](https://github.com/kubernetes/ingress-nginx/tree/main/test/e2e/annotations/backendprotocol.go#L64)
 - [should set backend protocol to grpcs:// and use grpc_pass](https://github.com/kubernetes/ingress-nginx/tree/main/test/e2e/annotations/backendprotocol.go#L79)
-- [should set backend protocol to '' and use fastcgi_pass](https://github.com/kubernetes/ingress-nginx/tree/main/test/e2e/annotations/backendprotocol.go#L94)
 - [should set backend protocol to '' and use ajp_pass](https://github.com/kubernetes/ingress-nginx/tree/main/test/e2e/annotations/backendprotocol.go#L109)
 
 ### [client-body-buffer-size](https://github.com/kubernetes/ingress-nginx/tree/main/test/e2e/annotations/clientbodybuffersize.go#L28)
@@ -282,13 +281,6 @@ Do not try to edit it manually.
 - [should fail to use longest match for documented warning](https://github.com/kubernetes/ingress-nginx/tree/main/test/e2e/annotations/rewrite.go#L158)
 - [should allow for custom rewrite parameters](https://github.com/kubernetes/ingress-nginx/tree/main/test/e2e/annotations/rewrite.go#L190)
 
-### [backend-protocol - FastCGI](https://github.com/kubernetes/ingress-nginx/tree/main/test/e2e/annotations/fastcgi.go#L30)
-
-- [should use fastcgi_pass in the configuration file](https://github.com/kubernetes/ingress-nginx/tree/main/test/e2e/annotations/fastcgi.go#L37)
-- [should add fastcgi_index in the configuration file](https://github.com/kubernetes/ingress-nginx/tree/main/test/e2e/annotations/fastcgi.go#L54)
-- [should add fastcgi_param in the configuration file](https://github.com/kubernetes/ingress-nginx/tree/main/test/e2e/annotations/fastcgi.go#L71)
-- [should return OK for service with backend protocol FastCGI](https://github.com/kubernetes/ingress-nginx/tree/main/test/e2e/annotations/fastcgi.go#L102)
-
 ### [auth-*](https://github.com/kubernetes/ingress-nginx/tree/main/test/e2e/annotations/auth.go#L39)
 
 - [should return status code 200 when no authentication is configured](https://github.com/kubernetes/ingress-nginx/tree/main/test/e2e/annotations/auth.go#L46)
@@ -480,10 +472,6 @@ Do not try to edit it manually.
 ### [](https://github.com/kubernetes/ingress-nginx/tree/main/test/e2e/framework/exec.go#L)
 
 - [](https://github.com/kubernetes/ingress-nginx/tree/main/test/e2e/framework/exec.go#L)
-
-### [](https://github.com/kubernetes/ingress-nginx/tree/main/test/e2e/framework/fastcgi_helloserver.go#L)
-
-- [](https://github.com/kubernetes/ingress-nginx/tree/main/test/e2e/framework/fastcgi_helloserver.go#L)
 
 ### [[Shutdown] Grace period shutdown](https://github.com/kubernetes/ingress-nginx/tree/main/test/e2e/gracefulshutdown/grace_period.go#L32)
 
