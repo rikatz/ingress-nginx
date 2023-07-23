@@ -1094,7 +1094,7 @@ func createOpentracingCfg(cfg ngx_config.Configuration) error {
 	// Expand possible environment variables before writing the configuration to file.
 	expanded := os.ExpandEnv(configData)
 
-	return os.WriteFile("/etc/nginx/opentracing.json", []byte(expanded), file.ReadWriteByUser)
+	return os.WriteFile("/etc/ingress-controller/telemetry/opentracing.json", []byte(expanded), file.ReadWriteByUser)
 }
 
 func createOpentelemetryCfg(cfg ngx_config.Configuration) error {
