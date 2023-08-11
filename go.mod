@@ -31,16 +31,16 @@ require (
 	gopkg.in/go-playground/pool.v3 v3.1.1
 	gopkg.in/mcuadros/go-syslog.v2 v2.3.0
 	k8s.io/api v0.27.4
-	k8s.io/apiextensions-apiserver v0.26.4
+	k8s.io/apiextensions-apiserver v0.27.2
 	k8s.io/apimachinery v0.27.4
-	k8s.io/apiserver v0.26.4
+	k8s.io/apiserver v0.27.2
 	k8s.io/cli-runtime v0.26.4
 	k8s.io/client-go v0.27.4
-	k8s.io/code-generator v0.26.4
+	k8s.io/code-generator v0.27.2
 	k8s.io/component-base v0.27.4
 	k8s.io/klog/v2 v2.100.1
 	pault.ag/go/sniff v0.0.0-20200207005214-cf7e4d167732
-	sigs.k8s.io/controller-runtime v0.14.6
+	sigs.k8s.io/controller-runtime v0.15.1
 	sigs.k8s.io/mdtoc v1.1.0
 )
 
@@ -49,7 +49,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
-	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
+	github.com/coreos/go-systemd/v22 v22.4.0 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
@@ -95,7 +95,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/procfs v0.10.1 // indirect
 	github.com/sergi/go-diff v1.1.0 // indirect
-	github.com/sirupsen/logrus v1.8.1 // indirect
+	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/xlab/treeprint v1.1.0 // indirect
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect
 	github.com/yudai/pp v2.0.1+incompatible // indirect
