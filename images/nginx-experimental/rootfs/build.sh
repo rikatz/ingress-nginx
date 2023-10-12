@@ -37,6 +37,8 @@ export MORE_HEADERS_VERSION=607d1b1f32abc3de5a26deeeb827de19c1e842b9
 # Check for recent changes: https://github.com/atomx/nginx-http-auth-digest/compare/v1.0.0...atomx:master
 export NGINX_DIGEST_AUTH=1.0.0
 
+export NGINX_NJS=0.8.1
+
 # Check for recent changes: https://github.com/SpiderLabs/ModSecurity-nginx/compare/v1.0.3...master
 export MODSECURITY_VERSION=1.0.3
 
@@ -177,6 +179,9 @@ get_src 05dd6d9356d66a74e61035f2a42162f8c754c97cf1ba64e7a801ba158d6c0711 \
 
 get_src aa961eafb8317e0eb8da37eb6e2c9ff42267edd18b56947384e719b85188f58b \
         "https://github.com/vision5/ngx_devel_kit/archive/v$NDK_VERSION.tar.gz"
+
+get_src 0450d9652d3cfe7dd9f802d6f790a3616e1612eef447195cd3daa5d43b395881 \
+        "https://github.com/nginx/njs/archive/$NGINX_NJS.tar.gz"
 
 get_src cd5e2cc834bcfa30149e7511f2b5a2183baf0b70dc091af717a89a64e44a2985 \
         "https://github.com/openresty/set-misc-nginx-module/archive/v$SETMISC_VERSION.tar.gz"
@@ -434,6 +439,7 @@ WITH_MODULES=" \
   --add-module=$BUILD_PATH/stream-lua-nginx-module-$LUA_STREAM_NGX_VERSION \
   --add-module=$BUILD_PATH/lua-upstream-nginx-module-$LUA_UPSTREAM_VERSION \
   --add-dynamic-module=$BUILD_PATH/nginx-http-auth-digest-$NGINX_DIGEST_AUTH \
+  --add-dynamic-module=$BUILD_PATH/njs-$NGINX_NJS/nginx \
   --add-dynamic-module=$BUILD_PATH/ModSecurity-nginx-$MODSECURITY_VERSION \
   --add-dynamic-module=$BUILD_PATH/ngx_http_geoip2_module-${GEOIP2_VERSION} \
   --add-dynamic-module=$BUILD_PATH/ngx_brotli"
