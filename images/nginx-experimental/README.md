@@ -1,4 +1,4 @@
-NGINX base image using [alpine](https://www.alpinelinux.org/)
+NGINX Experimental base image using [alpine](https://www.alpinelinux.org/)
 
 This custom image contains:
 
