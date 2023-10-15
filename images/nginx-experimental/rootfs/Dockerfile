@@ -17,20 +17,43 @@ COPY . /
 
 RUN apk update \
   && apk upgrade \
-  && apk add -U bash --no-cache \
-  && /build.sh
+  && apk add -U bash --no-cache
+
+RUN /build-with-packages.sh
 
 # Use a multi-stage build
 FROM alpine:3.18.4
 
-ENV PATH=$PATH:/usr/local/luajit/bin:/usr/local/nginx/sbin:/usr/local/nginx/bin
+ENV PATH=$PATH:/usr/local/nginx/sbin:/usr/local/nginx/bin
 
-ENV LUA_PATH="/usr/local/share/luajit-2.1.0-beta3/?.lua;/usr/local/share/lua/5.1/?.lua;/usr/local/lib/lua/?.lua;;"
+ENV LUA_PATH="/usr/share/lua/common/?/?.lua;/usr/share/luajit-2.1.0-beta.3/jit/?.lua;/usr/local/lib/lua/resty/?.lua;;"
 ENV LUA_CPATH="/usr/local/lib/lua/?/?.so;/usr/local/lib/lua/?.so;;"
 
 COPY --from=builder /usr/local /usr/local
 COPY --from=builder /opt /opt
 COPY --from=builder /etc/nginx /etc/nginx
+
+RUN apk update \ 
+  && apk add nginx \
+    nginx-mod-devel-kit \
+    nginx-mod-http-brotli \
+    nginx-mod-http-geoip2 \
+    nginx-mod-http-headers-more \
+    nginx-mod-http-js \
+    nginx-mod-http-set-misc \
+    nginx-mod-http-lua \
+    nginx-mod-http-lua-upstream \
+    nginx-mod-stream \
+    nginx-mod-stream-geoip2 \
+    nginx-mod-stream-js \
+    mimalloc2 \
+    lua-resty-core \
+    lua-resty-lrucache \
+    lua-resty-string \
+    lua-resty-http \
+    lua-resty-lock \
+    ssdeep \
+    luajit
 
 RUN apk update \
   && apk upgrade \

@@ -1,0 +1,35 @@
+## APK Packages
+NGINX
+NDK
+NJS
+set misc 
+more_headers
+lua-nginx 
+luajit2
+nginx-geoip2
+lua-resty-core
+lua-resty-lrucache
+lua-resty-http
+lua-resty-string
+lua-upstream-nginx
+lua-resty-lock
+ngx-brotli
+mimalloc
+ssdeep
+
+## NGINX Dynamic Modules (TODO)
+nginx-digest-auth
+modsec
+stream-lua-nginx
+
+## Lua modules
+lua-resty-upload
+lua-resty-balancer
+lua-cjson 
+lua-resty-cookie
+lua-resty-dns
+lua-resty-memcached
+lua-resty-redis 
+lua-resty-ipmatcher
+lua-resty-globalthott
+                        
