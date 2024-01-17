@@ -101,6 +101,9 @@ export LUA_RESTY_IPMATCHER_VERSION=3e93c53eb8c9884efe939ef070486a0e507cc5be
 # Check for recent changes: https://github.com/ElvinEfendi/lua-resty-global-throttle/compare/v0.2.0...main
 export LUA_RESTY_GLOBAL_THROTTLE_VERSION=v0.2.0
 
+export NGINX_OTEL_VERSION=1971b4f17f6ba323fa0382a608ec8a7387fb6450
+export NGINX_OTEL_PATCH=$(pwd)/otel
+
 # Check for recent changes:  https://github.com/microsoft/mimalloc/compare/v1.7.6...master
 export MIMALOC_VERSION=v2.1.2
 
@@ -165,7 +168,14 @@ apk add \
   unzip \
   dos2unix \
   yaml-cpp \
-  coreutils
+  coreutils \
+  build-base \
+  openssl-dev \
+  pkgconfig \
+  c-ares-dev \
+  re2-dev \
+  grpc-dev \
+  protobuf-dev
 
 mkdir -p /etc/nginx
 
@@ -253,6 +263,9 @@ get_src 0fb790e394510e73fdba1492e576aaec0b8ee9ef08e3e821ce253a07719cf7ea \
 
 get_src d74f86ada2329016068bc5a243268f1f555edd620b6a7d6ce89295e7d6cf18da \
         "https://github.com/microsoft/mimalloc/archive/${MIMALOC_VERSION}.tar.gz" "mimalloc"
+
+get_src abc123abc123abc123 \
+        "https://github.com/nginxinc/nginx-otel/archive/${NGINX_OTEL_VERSION}.tar.gz" "nginx-otel"
 
 # improve compilation times
 CORES=$(($(grep -c ^processor /proc/cpuinfo) - 1))
@@ -471,6 +484,15 @@ WITH_MODULES=" \
 make
 make modules
 make install
+
+cd "$BUILD_PATH/nginx-otel"
+patch CMakeLists.txt ${NGINX_OTEL_PATCH}/CMakeLists.patch
+patch src/http_module.cpp ${NGINX_OTEL_PATCH}/http_module.patch
+mkdir build
+cd build
+cmake -DNGX_OTEL_NGINX_BUILD_DIR=${BUILD_PATH}/nginx-${NGINX_VERSION}/objs .. 
+make -j 8
+cp ngx_otel_module.so /etc/nginx/modules
 
 cd "$BUILD_PATH/lua-resty-core"
 make install
