@@ -30,7 +30,7 @@ load_module /etc/nginx/modules/ngx_http_modsecurity_module.so;
 {{ end }}
 
 {{ if (shouldLoadOpentelemetryModule $cfg $servers) }}
-load_module /modules_mount/etc/nginx/modules/otel/otel_ngx_module.so;
+load_module /etc/nginx/modules/ngx_otel_module.so;
 {{ end }}
 
 daemon off;
@@ -60,6 +60,7 @@ events {
 }
 
 http {
+    # TODO (rkatz) - This directive is not required anymore and should be turned into real configs here
     {{ if (shouldLoadOpentelemetryModule $cfg $servers) }}
     opentelemetry_config {{ $cfg.OpentelemetryConfig }};
     {{ end }}
