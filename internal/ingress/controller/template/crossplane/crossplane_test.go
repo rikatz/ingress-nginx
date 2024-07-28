@@ -63,16 +63,13 @@ func TestCrossplaneTemplate(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, mimeFile.Close())
 
-	tplConfig := &config.TemplateConfig{
-		Cfg: config.NewDefault(),
-	}
-	tpl := crossplane.NewTemplate()
-
 	t.Run("it should be able to marshall and unmarshall the default configuration", func(t *testing.T) {
+		tplConfig := &config.TemplateConfig{
+			Cfg: config.NewDefault(),
+		}
 		tplConfig.Cfg.DefaultSSLCertificate = defaultCertificate
-		tplConfig.Cfg.EnableBrotli = true
-		tplConfig.Cfg.HideHeaders = []string{"x-fake-header", "x-another-fake-header"}
 
+		tpl := crossplane.NewTemplate()
 		tpl.SetMimeFile(mimeFile.Name())
 		content, err := tpl.Write(tplConfig)
 		require.NoError(t, err)
@@ -88,6 +85,10 @@ func TestCrossplaneTemplate(t *testing.T) {
 	})
 
 	t.Run("it should be able to marshall and unmarshall the specified configuration", func(t *testing.T) {
+		tplConfig := &config.TemplateConfig{
+			Cfg: config.NewDefault(),
+		}
+
 		tplConfig.Cfg.DefaultSSLCertificate = defaultCertificate
 
 		tplConfig.Cfg.UseProxyProtocol = true
@@ -117,7 +118,20 @@ func TestCrossplaneTemplate(t *testing.T) {
 		tplConfig.Cfg.BlockCIDRs = []string{"192.168.0.0/24", " 200.200.0.0/16 "}          // default 0
 		tplConfig.Cfg.BlockUserAgents = []string{"someuseragent", " another/user-agent  "} // default 0
 
-		tpl = crossplane.NewTemplate()
+		tplConfig.Cfg.EnableBrotli = true
+		tplConfig.Cfg.BrotliLevel = 7
+		tplConfig.Cfg.BrotliMinLength = 2
+		tplConfig.Cfg.BrotliTypes = "application/xml+rss application/atom+xml"
+
+		tplConfig.Cfg.HideHeaders = []string{"x-fake-header", "x-another-fake-header"}
+		tplConfig.Cfg.UpstreamKeepaliveConnections = 15
+
+		tplConfig.Cfg.UpstreamKeepaliveConnections = 200
+		tplConfig.Cfg.UpstreamKeepaliveTime = "60s"
+		tplConfig.Cfg.UpstreamKeepaliveTimeout = 200
+		tplConfig.Cfg.UpstreamKeepaliveRequests = 15
+
+		tpl := crossplane.NewTemplate()
 		tpl.SetMimeFile(mimeFile.Name())
 		content, err := tpl.Write(tplConfig)
 		require.NoError(t, err)

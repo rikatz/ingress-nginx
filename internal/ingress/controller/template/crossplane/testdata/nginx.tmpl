@@ -360,20 +360,7 @@ http {
     {{ range $header := $cfg.HideHeaders }}proxy_hide_header {{ $header }};
     {{ end }}
 
-    # END MIGRATED VARIOUS 1
-
-    {{ buildOpentelemetry $cfg $servers }}
-
-    # Create a variable that contains the literal $ character.
-    # This works because the geo module will not resolve variables.
-    geo $literal_dollar {
-        default "$";
-    }
-
-    {{ range $errCode := $cfg.CustomHTTPErrors }}
-    error_page {{ $errCode }} = @custom_upstream-default-backend_{{ $errCode }};{{ end }}
-
-    upstream upstream_balancer {
+        upstream upstream_balancer {
         server 0.0.0.1; # placeholder
 
         balancer_by_lua_block {
@@ -387,6 +374,32 @@ http {
         keepalive_requests {{ $cfg.UpstreamKeepaliveRequests }};
         {{ end }}
     }
+
+    {{ if gt (len $cfg.BlockUserAgents) 0 }}
+    map $http_user_agent $block_ua {
+        default 0;
+
+        {{ range $ua := $cfg.BlockUserAgents }}{{ trimSpace $ua }} 1;
+        {{ end }}
+    }
+    {{ end }}
+
+    # Global filters
+    {{ range $ip := $cfg.BlockCIDRs }}deny {{ trimSpace $ip }};
+    {{ end }}
+
+    # END MIGRATED VARIOUS 1
+
+    {{ buildOpentelemetry $cfg $servers }}
+
+    # Create a variable that contains the literal $ character.
+    # This works because the geo module will not resolve variables.
+    geo $literal_dollar {
+        default "$";
+    }
+
+    {{ range $errCode := $cfg.CustomHTTPErrors }}
+    error_page {{ $errCode }} = @custom_upstream-default-backend_{{ $errCode }};{{ end }}
 
     {{ range $rl := (filterRateLimits $servers ) }}
     # Ratelimit {{ $rl.Name }}
@@ -409,18 +422,6 @@ http {
     {{ $zone }}
     {{ end }}
 
-    # Global filters
-    {{ range $ip := $cfg.BlockCIDRs }}deny {{ trimSpace $ip }};
-    {{ end }}
-
-    {{ if gt (len $cfg.BlockUserAgents) 0 }}
-    map $http_user_agent $block_ua {
-        default 0;
-
-        {{ range $ua := $cfg.BlockUserAgents }}{{ trimSpace $ua }} 1;
-        {{ end }}
-    }
-    {{ end }}
 
     {{ if gt (len $cfg.BlockReferers) 0 }}
     map $http_referer $block_ref {
