@@ -112,3 +112,77 @@ func dictKbToStr(size int) string {
 	}
 	return fmt.Sprintf("%dK", size)
 }
+
+func commonListenOptions(template *config.TemplateConfig, hostname string) []string {
+	out := make([]string, 0)
+
+	if template.Cfg.UseProxyProtocol {
+		out = append(out, "proxy_protocol")
+	}
+
+	if hostname != "_" {
+		return out
+	}
+
+	// setup options that are valid only once per port
+	out = append(out, "default_server")
+
+	if template.Cfg.ReusePort {
+		out = append(out, "reuseport")
+	}
+
+	out = append(out, fmt.Sprintf("backlog=%d", template.BacklogSize))
+
+	return out
+}
+
+func buildListenDirective(address string, listenports *config.ListenPorts, https bool, extraargs []string) *ngx_crossplane.Directive {
+	args := make([]string, 0)
+	port := listenports.HTTP
+
+	// We don't support TLKS Passthrough anymore :)
+	if https {
+		port = listenports.HTTPS
+	}
+
+	if address == "" {
+		args = append(args, strconv.Itoa(port))
+	} else {
+		args = append(args, fmt.Sprintf("%s:%d", address, port))
+	}
+	args = append(args, extraargs...)
+	if https {
+		args = append(args, "ssl")
+	}
+	return buildDirective("listen", args)
+}
+
+func listenDirectives(tc config.TemplateConfig, tls bool, hostname string) ngx_crossplane.Directives {
+	directives := ngx_crossplane.Directives{}
+
+	co := commonListenOptions(&tc, hostname)
+
+	addrV4 := []string{""}
+	if len(tc.Cfg.BindAddressIpv4) > 0 {
+		addrV4 = tc.Cfg.BindAddressIpv4
+	}
+
+	for _, address := range addrV4 {
+		directives = append(directives, buildListenDirective(address, tc.ListenPorts, tls, co))
+	}
+
+	if !tc.IsIPV6Enabled {
+		return directives
+	}
+
+	addrV6 := []string{"[::]"}
+	if len(tc.Cfg.BindAddressIpv6) > 0 {
+		addrV6 = tc.Cfg.BindAddressIpv6
+	}
+
+	for _, address := range addrV6 {
+		directives = append(directives, buildListenDirective(address, tc.ListenPorts, tls, co))
+	}
+
+	return directives
+}
