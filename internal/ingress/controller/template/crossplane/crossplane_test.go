@@ -28,6 +28,7 @@ import (
 	"k8s.io/ingress-nginx/internal/ingress/controller/template/crossplane"
 	"k8s.io/ingress-nginx/internal/ingress/controller/template/crossplane/extramodules"
 	"k8s.io/ingress-nginx/pkg/apis/ingress"
+	utilingress "k8s.io/ingress-nginx/pkg/util/ingress"
 )
 
 const mockMimeTypes = `
@@ -39,6 +40,11 @@ types {
 `
 
 var resolvers = []net.IP{net.ParseIP("::1"), net.ParseIP("192.168.20.10")}
+
+var listenPorts = config.ListenPorts{
+	HTTP:  80,
+	HTTPS: 443,
+}
 
 // TestTemplate should be a roundtrip test.
 // We should initialize the scenarios based on the template configuration
@@ -77,6 +83,7 @@ func TestCrossplaneTemplate(t *testing.T) {
 		tplConfig := &config.TemplateConfig{
 			Cfg: config.NewDefault(),
 		}
+		tplConfig.ListenPorts = &listenPorts
 		tplConfig.Cfg.DefaultSSLCertificate = defaultCertificate
 		tplConfig.Cfg.EnableBrotli = true
 		tplConfig.Cfg.HideHeaders = []string{"x-fake-header", "x-another-fake-header"}
@@ -127,6 +134,7 @@ func TestCrossplaneTemplate(t *testing.T) {
 		tplConfig := &config.TemplateConfig{
 			Cfg: config.NewDefault(),
 		}
+		tplConfig.ListenPorts = &listenPorts
 		tplConfig.Cfg.DefaultSSLCertificate = defaultCertificate
 		tplConfig.Cfg.WorkerCPUAffinity = "0001 0010 0100 1000"
 		tplConfig.Cfg.LuaSharedDicts = map[string]int{
@@ -185,6 +193,21 @@ func TestCrossplaneTemplate(t *testing.T) {
 		tplConfig.Cfg.UpstreamKeepaliveTime = "60s"
 		tplConfig.Cfg.UpstreamKeepaliveTimeout = 200
 		tplConfig.Cfg.UpstreamKeepaliveRequests = 15
+
+		tplConfig.Servers = []*ingress.Server{
+			{
+				Hostname: "*.xpto.com",
+				Aliases:  []string{"xpto2.com", "xpto3.com"},
+			},
+		}
+
+		redirConfig := []*utilingress.Redirect{
+			{
+				From: "www.origin.com",
+				To:   "www.destination.com",
+			},
+		}
+		tplConfig.RedirectServers = redirConfig
 
 		tpl = crossplane.NewTemplate()
 		tpl.SetMimeFile(mimeFile.Name())

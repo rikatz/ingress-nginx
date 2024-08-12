@@ -30,6 +30,7 @@ Unsupported directives:
 - modsecurity
 - any stream directive (TCP/UDP forwarding)
 - geoip2
+- External Auth
 */
 
 // On this case we will try to use the go ngx_crossplane to write the template instead of the template renderer

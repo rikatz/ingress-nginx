@@ -186,3 +186,20 @@ func listenDirectives(tc config.TemplateConfig, tls bool, hostname string) ngx_c
 
 	return directives
 }
+
+type customError struct {
+	UpstreamName       string
+	ErrorCodes         []int
+	EnableMetrics      bool
+	ModsecurityEnabled bool
+}
+
+// buildCustomErrorDeps is a utility function returning a struct wrapper with
+// the data required to build the 'CUSTOM_ERRORS' template
+func buildCustomErrorDeps(upstreamName string, errorCodes []int, enableMetrics bool) customError {
+	return customError{
+		UpstreamName:  upstreamName,
+		ErrorCodes:    errorCodes,
+		EnableMetrics: enableMetrics,
+	}
+}
