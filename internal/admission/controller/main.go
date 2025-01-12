@@ -27,6 +27,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/klog/v2"
+
+	uuid "k8s.io/ingress-nginx/pkg/util/uuid"
 )
 
 // Checker must return an error if the ingress provided as argument
@@ -55,6 +57,10 @@ func (ia *IngressAdmission) HandleAdmission(obj runtime.Object) (runtime.Object,
 	review, isV1 := obj.(*admissionv1.AdmissionReview)
 	if !isV1 {
 		return nil, fmt.Errorf("request is not of type AdmissionReview v1 or v1beta1")
+	}
+
+	if err := uuid.CheckUUID(string(review.Request.UID)); err != nil {
+		return nil, fmt.Errorf("error on request UID: %w", err)
 	}
 
 	if !apiequality.Semantic.DeepEqual(review.Request.Kind, ingressResource) {

@@ -30,6 +30,7 @@ import (
 	ing_errors "k8s.io/ingress-nginx/internal/ingress/errors"
 	"k8s.io/ingress-nginx/internal/ingress/resolver"
 	"k8s.io/ingress-nginx/pkg/util/file"
+	uuid "k8s.io/ingress-nginx/pkg/util/uuid"
 )
 
 const (
@@ -201,6 +202,14 @@ func (a auth) Parse(ing *networking.Ingress) (interface{}, error) {
 	realm, err := parser.GetStringAnnotation(authRealmAnnotation, ing, a.annotationConfig.Annotations)
 	if ing_errors.IsValidationError(err) {
 		return nil, err
+	}
+
+	if err := uuid.CheckUUID(string(ing.UID)); err != nil {
+		return nil, fmt.Errorf("error on ingress UID: %w", err)
+	}
+
+	if err := uuid.CheckUUID(string(secret.UID)); err != nil {
+		return nil, fmt.Errorf("error on secret UID: %w", err)
 	}
 
 	passFilename := fmt.Sprintf("%v/%v-%v-%v.passwd", a.authDirectory, ing.GetNamespace(), ing.UID, secret.UID)

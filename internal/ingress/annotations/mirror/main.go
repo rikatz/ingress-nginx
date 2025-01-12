@@ -25,6 +25,7 @@ import (
 	"k8s.io/ingress-nginx/internal/ingress/annotations/parser"
 	"k8s.io/ingress-nginx/internal/ingress/errors"
 	"k8s.io/ingress-nginx/internal/ingress/resolver"
+	uuid "k8s.io/ingress-nginx/pkg/util/uuid"
 	"k8s.io/klog/v2"
 )
 
@@ -113,6 +114,10 @@ func NewParser(r resolver.Resolver) parser.IngressAnnotation {
 // ParseAnnotations parses the annotations contained in the ingress
 // rule used to configure mirror
 func (a mirror) Parse(ing *networking.Ingress) (interface{}, error) {
+	if err := uuid.CheckUUID(string(ing.UID)); err != nil {
+		return nil, fmt.Errorf("error on ingress UID: %w", err)
+	}
+
 	config := &Config{
 		Source: fmt.Sprintf("/_mirror-%v", ing.UID),
 	}

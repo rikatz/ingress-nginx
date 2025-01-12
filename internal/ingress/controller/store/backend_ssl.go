@@ -23,14 +23,12 @@ import (
 	apiv1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"k8s.io/ingress-nginx/pkg/apis/ingress"
-
 	klog "k8s.io/klog/v2"
 
 	"k8s.io/ingress-nginx/internal/net/ssl"
-
+	"k8s.io/ingress-nginx/pkg/apis/ingress"
 	"k8s.io/ingress-nginx/pkg/util/file"
+	uuid "k8s.io/ingress-nginx/pkg/util/uuid"
 )
 
 // syncSecret synchronizes the content of a TLS Secret (certificate(s), secret
@@ -99,6 +97,10 @@ func (s *k8sStore) getPemCertificate(secretName string) (*ingress.SSLCert, error
 
 		if key == nil {
 			return nil, fmt.Errorf("key 'tls.key' missing from Secret %q", secretName)
+		}
+
+		if err := uuid.CheckUUID(string(secret.UID)); err != nil {
+			return nil, fmt.Errorf("error on ingress UID: %w", err)
 		}
 
 		sslCert, err = ssl.CreateSSLCert(cert, key, string(secret.UID))

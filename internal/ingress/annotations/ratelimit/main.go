@@ -28,6 +28,7 @@ import (
 	"k8s.io/ingress-nginx/internal/ingress/resolver"
 	"k8s.io/ingress-nginx/internal/net"
 	"k8s.io/ingress-nginx/pkg/util/sets"
+	uuid "k8s.io/ingress-nginx/pkg/util/uuid"
 )
 
 const (
@@ -255,6 +256,10 @@ func (a ratelimit) Parse(ing *networking.Ingress) (interface{}, error) {
 			LimitRate:      lr,
 			LimitRateAfter: lra,
 		}, nil
+	}
+
+	if err := uuid.CheckUUID(string(ing.UID)); err != nil {
+		return nil, fmt.Errorf("error on ingress UID: %w", err)
 	}
 
 	zoneName := fmt.Sprintf("%v_%v_%v", ing.GetNamespace(), ing.GetName(), ing.UID)
