@@ -17,6 +17,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moul/pb v0.0.0-20220425114252-bca18df4138c
 	github.com/ncabatoff/process-exporter v0.8.7
+	github.com/nginxinc/nginx-go-crossplane v0.4.86
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/opencontainers/cgroups v0.0.6
 	github.com/pires/go-proxyproto v0.11.0
@@ -94,6 +95,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/jstemmer/go-junit-report v1.0.0 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/mmarkdown/mmark v2.0.40+incompatible // indirect
 	github.com/moby/sys/mountinfo v0.7.2 // indirect
